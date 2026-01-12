@@ -1,18 +1,19 @@
 ##### FUNCTIONS FOR ANALYSIS OF THE MACAQUE RIPPLE BAND #####
 
 import os
-import copy
+#import copy
 import numpy as np
 import pandas as pd
 import elephant
-from scipy.signal import hilbert, welch
+from scipy.signal import hilbert, welch, find_peaks
 import neo
 from scipy.stats import zscore
 import quantities as pq
 import pickle
-from scipy.signal import find_peaks
 from copy import deepcopy
 import cmath
+import itertools
+import random
 
 
 ########## DATA LOADING AND HANDLING ##########
@@ -1766,6 +1767,36 @@ def spectra_trigg_list(trigg_vec,sig_vec,width_cut_spectra=100,width_cut_wavelet
     f_dict['f_wavelet'] = pywt.cwt(trigg_list_wavelet[0], scales, wavelet, sampling_period=1/fs)[1]
 
     return f_dict, spectra_list, wavelet_list
+
+
+################### PREPROCESSING SUA GRAPH DATA ###############################
+
+
+def aux_calculate_pairs(classes,channels,layout,all_class_pairs):
+    """
+    Auxiliary for SUA neighbouring graph plot.   
+
+    Creates dictionaries with number of cell pairs, or a neigh. pairs of a given type. 
+    """
+    all_classes_pairs = {cl: 0 for cl in all_class_pairs}  # counting the number of pairs of this type 
+    all_classes_close_pairs = {cl: 0 for cl in all_class_pairs}  # counting the number of neigh. pairs of this type
+    
+    ### all touples (without repetition) of inidces of cells (we will index class and channel with this)
+    num_cells = len(classes)
+    all_touples = list(itertools.combinations(range(num_cells), 2)) 
+
+    for t in all_touples:
+        ch_0 = np.concatenate(np.where(layout==channels[t[0]])) # coordinates of the channel pick with the first index
+        ch_1 = np.concatenate(np.where(layout==channels[t[1]]))  # the same for the second picked channel
+        are_neigh_channels = (np.abs(ch_0[0]-ch_1[0])<2 and np.abs(ch_0[1]-ch_1[1])<2)
+        cl_0 = classes[t[0]]
+        cl_1 = classes[t[1]]
+        names_merged = "+".join(sorted((cl_0,cl_1)))
+        all_classes_pairs[names_merged]+=1  # counting all pairs
+        if are_neigh_channels:
+            all_classes_close_pairs[names_merged]+=1 # counting close pairs
+            
+    return all_classes_pairs, all_classes_close_pairs
 
 
 
