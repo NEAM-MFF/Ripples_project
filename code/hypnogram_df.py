@@ -1,7 +1,7 @@
 ############# HYPNOGRAMS ############
 
 ### IMPORT ###
-from functions_macaques import *
+from functions_analysis import *
 import pandas as pd
 import numpy as np
 import yaml
@@ -29,15 +29,6 @@ for monkey in ['L','N','F']:
         LFP_list = load_all_arr_list(monkey,dates=[date],type_sig='LFP',areas='all',only_good_ch=False,
                              params=params,zscore_arr=True,
                              data_folder=DATA_FOLDER,df_ripp_folder='',df_bad_ch_folder='')
-        pkl_name = f'{METADATA_FOLDER}/EC_EO_indicators/eyes_indic_monkey_{monkey}_RS_date_{date}_common_times.pkl' ### EC, EO indicators
-        with open(pkl_name, 'rb') as file:
-            aux_dict = pickle.load(file)
-        EC_indicator = aux_dict['EC']  # already cut to common times
-        EO_indicator = aux_dict['EO']
-        
-        EC_indicator = EC_indicator.astype(bool)
-        EO_indicator = EO_indicator.astype(bool)
-
         #hyp_list = [] ### list of hypnograms (information from all channels used) for all arrays
         for array in range(16):
             print(array)
@@ -57,6 +48,7 @@ for monkey in ['L','N','F']:
         
             #### MERGING ALL CHANNELS (FROM ONE ARRAY) HYPNOGRAMS INTO ONE , based on probabilities
             probs_merged = sum(prob_dfs) / len(prob_dfs) ### mean probability based on results of all channels
+            ensure_dir_exists(f'{DF_FOLDER}/hypnograms/{monkey}/')
             probs_merged.to_csv(f'{DF_FOLDER}/hypnograms/{monkey}/hypnogram_30s_{monkey}_{date}_array_{array+1}.csv',index=False)
             print(f'Data for {monkey}, {date}, array {array+1} saved.')
         

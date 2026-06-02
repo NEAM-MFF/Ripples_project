@@ -7,7 +7,7 @@ import yaml
 import pickle
 import neo
 
-with open("/CSNG/studekat/ripple_band_project/code/params_analysis.yml") as f:
+with open("/CSNG/studekat/ripple_paper_clean/code/params_analysis.yml") as f:
     params = yaml.safe_load(f)
 
 DATA_FOLDER = params['data_folder'] ### folder with all the preprocessed data
@@ -28,7 +28,7 @@ for monkey in MONKEY_LIST:
             print(array)
             try:
                 try:
-                    spike_block = load_block(monkey,array,type_rec='RS',type_sig='spikes',date=date,data_folder=DATA_FOLDER)  # SUA
+                    spike_block = load_block(monkey,array,type_rec='RS',type_sig='spikes_KS4',date=date,data_folder=DATA_FOLDER)  # SUA
                     RB_block = load_block(monkey,array,type_rec='RS',type_sig='RB',date=date,data_folder=DATA_FOLDER)  # Ripple band
                     num_cells = len(spike_block.segments[0].spiketrains)
                     start_t_spikes_ms = int(np.floor(np.float64(spike_block.segments[0].spiketrains[0].t_start.magnitude)*1000))
@@ -86,22 +86,14 @@ for monkey in MONKEY_LIST:
 
                     rb_phase_arr = sig_block_to_arr(RB_block,'RB_phase')
                     rb_env_phase_arr = sig_block_to_arr(RB_block,'RB_envelope_phase')
-
                     spike_arr = spike_block_to_arr(spike_block)
-
-                    # cutting out common times only for N and F, already well aligned for A and L
-                    if monkey in ['N','F']:
-                        rb_phase_arr = cut_abs_times(rb_phase_arr,start_t_RB_ms,monkey,rec_type='RS',date=date,params=params) ### TODO put phase here
-                        rb_env_phase_arr = cut_abs_times(rb_env_phase_arr,start_t_RB_ms,monkey,rec_type='RS',date=date,params=params) ### TODO put env. phase here
-                        
-                        spike_arr = cut_abs_times(spike_arr,start_t_spikes_ms,monkey,rec_type='RS',date=date,params=params)
 
                     rb_phase_vec = rb_phase_arr[ch,:]
                     rb_env_phase_vec = rb_env_phase_arr[ch,:]
                     
                     spike_vec = spike_arr[cell,:]
 
-                    prop_dict = shuffle_distrib(spike_vec,rb_phase_vec,rb_env_phase_vec,channel_prop=channel_prop,num_repeat=NUM_REPEAT)
+                    prop_dict = shuffle_distrib_ph(spike_vec,rb_phase_vec,rb_env_phase_vec,channel_prop=channel_prop,num_repeat=NUM_REPEAT)
                     prop_list.append(prop_dict)
                     
                     print(f'Prop. for cell no. {cell+1}/{num_cells} calculated.')

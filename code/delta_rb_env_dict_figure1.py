@@ -10,11 +10,18 @@ from scipy.signal import find_peaks
 
 lowpass_freq = 40
 MAIN_FOLDER = '/CSNG/studekat/ripple_paper_clean/'
+DF_FOLDER = '/CSNG/studekat/ripple_paper_clean/dataframes'
+
+with open("/CSNG/studekat/ripple_paper_clean/code/params_analysis.yml") as f:
+    params = yaml.safe_load(f)
+
+DATA_FOLDER = params['data_folder'] ### folder with all the preprocessed data
+DATES = params['dates']
+AREAS = params['areas']
 
 ### RIPPLE ENVELOPE ###
 
 # For each monkey, we have three dictionaries: All, EC, EO. In each of them, dictionary with array-wise ripple envelope avg. np array
-# CAREFUL - WE NEED TO CUT OUT THE COMMON TIMES
 
 dates_list = list_merge([DATES['L']['RS'],DATES['N']['RS'],DATES['F']['RS']])
 monkeys_list = ['L','L','L','N','N','F','F','F']
@@ -48,28 +55,27 @@ for date, monkey in zip(all_env_dict.keys(), monkeys_list):
     
                 EC_indicator = eyes_dict['EC'].astype(bool)
                 EO_indicator = eyes_dict['EO'].astype(bool)
+                min_len = np.int64(np.min([len(EC_indicator),len(np.sum(RB_env_array,axis=0))]))
+                print(f'Min. len: {min_len}')
     
-                RB_env_array = cut_abs_times(RB_env_array,np.int64(start_rec),monkey,rec_type='RS',date=date,params=params_analysis)
-                all_env_dict[date]['All'][array] = np.sum(RB_env_array,axis=0)
-                all_env_dict[date]['EC'][array] = np.sum(RB_env_array,axis=0)[EC_indicator]
-                all_env_dict[date]['EO'][array] = np.sum(RB_env_array,axis=0)[EO_indicator]
+                #RB_env_array = cut_abs_times(RB_env_array,np.int64(start_rec),monkey,rec_type='RS',date=date,params=params_analysis)
+                all_env_dict[date]['All'][array] = np.sum(RB_env_array,axis=0)[:min_len]
+                all_env_dict[date]['EC'][array] = np.sum(RB_env_array,axis=0)[:min_len][EC_indicator[:min_len]]
+                all_env_dict[date]['EO'][array] = np.sum(RB_env_array,axis=0)[:min_len][EO_indicator[:min_len]]
                 print(array)
             except:
                 print(f'The data for array {array} could not be loaded.')
         else:
             print(f'Array {array} is not in V12.')
         
-
-ensure_dir_exists('/CSNG/studekat/ripple_paper_clean/dataframes/delta_rb_env_analysis/')
-with open('/CSNG/studekat/ripple_paper_clean/dataframes/delta_rb_env_analysis/sum_rb_envelopes_dict.pkl', "wb") as f:
+ensure_dir_exists(f'{DF_FOLDER}/delta_rb_env_analysis/')
+with open(f'{DF_FOLDER}/delta_rb_env_analysis/sum_rb_envelopes_dict.pkl', "wb") as f:
     pickle.dump(all_env_dict, f)
-
 print("Dictionary saved as all_env_dict.pkl")
 
 
 ### DELTA FILTERED ###
 # For each monkey, we have three dictionaries: All, EC, EO. In each of them, dictionary with array-wise ripple envelope avg. np array
-# CAREFUL - WE NEED TO CUT OUT THE COMMON TIMES
 
 dates_list = list_merge([DATES['L']['RS'],DATES['N']['RS'],DATES['F']['RS']])
 monkeys_list = ['L','L','L','N','N','F','F','F']
@@ -99,20 +105,21 @@ for date, monkey in zip(all_env_dict.keys(), monkeys_list):
     
                 EC_indicator = eyes_dict['EC'].astype(bool)
                 EO_indicator = eyes_dict['EO'].astype(bool)
+                min_len = np.int64(np.min([len(EC_indicator),len(np.sum(delta_array,axis=0))]))
+                print(f'Min. len: {min_len}')
     
-                delta_array = cut_abs_times(delta_array,np.int64(start_rec),monkey,rec_type='RS',date=date,params=params_analysis)
-                all_delta_dict[date]['All'][array] = np.sum(delta_array,axis=0)
-                all_delta_dict[date]['EC'][array] = np.sum(delta_array,axis=0)[EC_indicator]
-                all_delta_dict[date]['EO'][array] = np.sum(delta_array,axis=0)[EO_indicator]
+                #delta_array = cut_abs_times(delta_array,np.int64(start_rec),monkey,rec_type='RS',date=date,params=params_analysis)
+                all_delta_dict[date]['All'][array] = np.sum(delta_array,axis=0)[:min_len]
+                all_delta_dict[date]['EC'][array] = np.sum(delta_array,axis=0)[:min_len][EC_indicator[:min_len]]
+                all_delta_dict[date]['EO'][array] = np.sum(delta_array,axis=0)[:min_len][EO_indicator[:min_len]]
                 print(array)
             except:
                 print(f'The data for array {array} could not be loaded.')
         else:
             print(f'Array {array} is not in V12.')
 
-ensure_dir_exists('/CSNG/studekat/ripple_paper_clean/dataframes/delta_rb_env_analysis/')
-with open('/CSNG/studekat/ripple_paper_clean/dataframes/delta_rb_env_analysis/sum_delta_dict.pkl', "wb") as f:
+ensure_dir_exists(f'{DF_FOLDER}/delta_rb_env_analysis/')
+with open(f'{DF_FOLDER}/delta_rb_env_analysis/sum_delta_dict.pkl', "wb") as f:
     pickle.dump(all_delta_dict, f)
-
 print("Dictionary saved as all_delta_dict.pkl")
         

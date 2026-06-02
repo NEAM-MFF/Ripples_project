@@ -7,7 +7,7 @@ import pickle
 import neo
 import sys
 
-with open("/CSNG/studekat/ripple_band_project/code/params_analysis.yml") as f:
+with open("/CSNG/studekat/ripple_paper_clean/code/params_analysis.yml") as f:
     params_analysis = yaml.safe_load(f)
 
 DATA_FOLDER = params_analysis['data_folder']  # folder with all the preprocessed data

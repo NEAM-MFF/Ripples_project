@@ -14,6 +14,9 @@ from copy import deepcopy
 import cmath
 import itertools
 import random
+import pywt
+import time
+import copy
 
 
 ########## DATA LOADING AND HANDLING ##########
@@ -24,12 +27,17 @@ def load_block(monkey,array,type_rec,type_sig,date,data_folder=''):
     Loading the monkey data (already preprocessed as in the snake files).
     
     type_rec: RS, OG, NATIM
-    type_sig: LFP, RB, tMUA, spikes
+    type_sig: LFP, RB, tMUA, spikes, spikes_KS4
     """
     if type_rec=='NATIM':
         path = f'{data_folder}/macaque{monkey}_TVSD_{date}/{type_sig}/macaque{monkey}_TVSD_{date}_Array{array}_{type_sig}.nix'
     else:
-        path = f'{data_folder}/macaque{monkey}_{type_rec}_{date}/{type_sig}/macaque{monkey}_{type_rec}_{date}_Array{array}_{type_sig}.nix'
+        #if monkey=='L' and type_sig=='spikes_KS4':
+        #    path = f'{data_folder}/macaque{monkey}_{type_rec}_{date}/{type_sig}/macaque{monkey}_{type_rec}_{date}_Array{array}_spikes.nix'
+        if type_sig=='spikes':
+            path = f'{data_folder}/macaque{monkey}_{type_rec}_{date}/{type_sig}/macaque{monkey}_{type_rec}_{date}_Array{array}_spikes_good_units.nix'
+        else:
+            path = f'{data_folder}/macaque{monkey}_{type_rec}_{date}/{type_sig}/macaque{monkey}_{type_rec}_{date}_Array{array}_{type_sig}.nix'
     try:
         io = neo.NixIO(path,'ro')
         block = io.read_block()
@@ -357,6 +365,126 @@ def create_indicator(df,start_col='t_start',stop_col='t_stop',state_col='state',
     return indic_arr
 
 
+def load_all_arr_list(monkey,dates,type_sig,areas='all',only_good_ch=True,params={},zscore_arr=True,
+                      data_folder='',df_ripp_folder='',df_bad_ch_folder=''):
+    """
+    Loads list of arrays with a given type of signal, 
+    each np.array is one Utah array.
+    If areas is not 'all', only the areas in the list of areas will be loaded.
+
+    type_sig:   tMUA, RB, RB_phase, LFP, ripple_pos_peaks, ripple_binary (number 1 in time bins where the ripple is), 
+                tMUA_during_ripples
+    zscore_arr: only applied on RB and LFP
+    """
+
+    monkey_areas = params['areas'][monkey]
+    
+    if areas!='all':
+        area_range = [index+1 for index, value in enumerate(monkey_areas) if value in areas]
+        num_arrays = len(area_range)
+    else:
+        area_range = range(1,17)
+        num_arrays = 16
+    
+    dates_arr_list = []
+    for date in dates:
+        if type_sig == 'tMUA':
+            arr_list = []
+            for array in area_range: # indices in 1 to 17
+                aux_bl = load_block(monkey,array,'RS','tMUA',date,data_folder=data_folder)
+                aux_arr = tMUA_block_to_arr(aux_bl)
+                ### ADDED 17/02/25 - cutting out only recording time when all arrays are on
+                start_t_arr = int(aux_bl.segments[0].spiketrains.t_start.item()*1000) ### in ms
+                #aux_arr = cut_abs_times(aux_arr,start_t_arr,monkey,'RS',date,params=params)
+                if only_good_ch:
+                    aux_arr = only_good_ch_arr(aux_arr,monkey,array,df_bad_ch_folder) ### killing bad channels
+                #if date==params['dates']['N']['RS'][0]: ### for this date there is one ms of additional column in tMUA array due to rounding, can be erased
+                #    aux_arr = aux_arr[:,:-1]
+                #### not needed when the cut by abs. time is used
+                arr_list.append(aux_arr)
+            dates_arr_list.append(arr_list)
+        elif type_sig == 'RB':
+            arr_list = []
+            for array in area_range:
+                aux_bl = load_block(monkey,array,'RS','RB',date,data_folder=data_folder)
+                aux_arr = ripple_sig_block_to_arr(aux_bl,phase=False,zscore_arr=zscore_arr)
+                start_t_arr = int(aux_bl.segments[0].analogsignals[0].t_start.item()*1000) 
+                aux_arr = cut_abs_times(aux_arr,start_t_arr,monkey,'RS',date,params=params)
+                if only_good_ch:
+                    aux_arr = only_good_ch_arr(aux_arr,monkey,array,df_bad_ch_folder) ### killing bad channels
+                arr_list.append(aux_arr)
+            dates_arr_list.append(arr_list)
+        elif type_sig == 'RB_env_std_all_sig':
+            arr_list = []
+            for array in area_range:
+                aux_bl = load_block(monkey,array,'RS','RB',date,data_folder=data_folder)
+                aux_arr = ripple_env_block_to_arr(aux_bl,normalised=False,std_whole_sig_norm=True)
+                start_t_arr = int(aux_bl.segments[0].analogsignals[0].t_start.item()*1000) 
+                aux_arr = cut_abs_times(aux_arr,start_t_arr,monkey,'RS',date,params=params)
+                if only_good_ch:
+                    aux_arr = only_good_ch_arr(aux_arr,monkey,array,df_bad_ch_folder) ### killing bad channels
+                arr_list.append(aux_arr)
+            dates_arr_list.append(arr_list)
+        elif type_sig == 'RB_phase':
+            arr_list = []
+            for array in area_range:
+                aux_bl = load_block(monkey,array,'RS','RB',date,data_folder=data_folder)
+                aux_arr = ripple_sig_block_to_arr(aux_bl,phase=True)
+                start_t_arr = int(aux_bl.segments[0].analogsignals[0].t_start.item()*1000) 
+                aux_arr = cut_abs_times(aux_arr,start_t_arr,monkey,'RS',date,params=params)
+                if only_good_ch:
+                    aux_arr = only_good_ch_arr(aux_arr,monkey,array,df_bad_ch_folder) ### killing bad channels
+                arr_list.append(aux_arr)
+            dates_arr_list.append(arr_list)
+        elif type_sig == 'RB_env_zscored':
+            arr_list = []
+            for array in area_range:
+                aux_bl = load_block(monkey,array,'RS','RB',date,data_folder=data_folder)
+                aux_arr = ripple_env_block_to_arr(aux_bl,normalised=False,std_whole_sig_norm=True)
+                start_t_arr = int(aux_bl.segments[0].analogsignals[0].t_start.item()*1000) 
+                aux_arr = cut_abs_times(aux_arr,start_t_arr,monkey,'RS',date,params=params)
+                if only_good_ch:
+                    aux_arr = only_good_ch_arr(aux_arr,monkey,array,df_bad_ch_folder) ### killing bad channels
+                arr_list.append(aux_arr)
+            dates_arr_list.append(arr_list)
+        elif type_sig == 'LFP':
+            arr_list = []
+            for array in area_range:
+                aux_bl = load_block(monkey,array,'RS','LFP',date,data_folder=data_folder)
+                aux_arr = sig_block_to_arr(aux_bl,'LFP')
+                start_t_arr = int(aux_bl.segments[0].analogsignals[0].t_start.item()*1000) 
+                aux_arr = cut_abs_times(aux_arr,start_t_arr,monkey,'RS',date,params=params)
+                if only_good_ch:
+                    aux_arr = only_good_ch_arr(aux_arr,monkey,array,df_bad_ch_folder) ### killing bad channels
+                arr_list.append(aux_arr)
+            dates_arr_list.append(arr_list)
+        else:
+            print('Invalid sig. type.')
+            return
+
+    all_dates_arr_list = []
+    if len(dates)>1:
+        print('Merging dates.')
+        for array in range(num_arrays):
+            arr_dates_list = []
+            for date_idx in range(len(dates)):
+                arr_dates_list.append(dates_arr_list[date_idx][array])
+            all_dates_arr = np.hstack(arr_dates_list)
+            all_dates_arr_list.append(all_dates_arr)
+    else:
+        all_dates_arr_list = dates_arr_list[0]
+        
+    return  all_dates_arr_list
+
+def only_good_ch_arr(aux_arr,monkey,array_id,bad_df_folder):
+    """
+    Returns array with only those rows, which are not bad channels.
+    """
+    bad_ch_vec = load_bad_ch_vec(monkey,array_id,all_arr=False,df_bad_ch_folder=bad_df_folder)
+    good_ch_vec = ~bad_ch_vec
+    return aux_arr[good_ch_vec,:]
+
+
 ########## MISC. AUX. FUNCTIONS ##########
 
 
@@ -519,15 +647,14 @@ def spike_train_prop_vec(spike_vector,rb_sig,LFP_sig,rb_phase,rb_envelope,rb_env
     """
     if indicator is not None:
         mask = indicator>0
-        try:
-            spike_vector = spike_vector[mask]
-        except:
-            spike_vector = spike_vector[mask[:-1]]  # sometimes the spike vector is one bin shorter
-        rb_sig = rb_sig[mask]
-        LFP_sig = LFP_sig[mask]
-        rb_phase = rb_phase[mask]
-        rb_envelope = rb_envelope[mask]
-        rb_env_phase = rb_env_phase[mask]
+        min_len = np.min([len(vec) for vec in [mask,spike_vector,rb_sig,LFP_sig,rb_phase,rb_envelope,rb_env_phase]])
+        mask = mask[:min_len]
+        spike_vector = spike_vector[:min_len][mask]
+        rb_sig = rb_sig[:min_len][mask]
+        LFP_sig = LFP_sig[:min_len][mask]
+        rb_phase = rb_phase[:min_len][mask]
+        rb_envelope = rb_envelope[:min_len][mask]
+        rb_env_phase = rb_env_phase[:min_len][mask]
         
     ### lists of RB phases and envs. of spikes - CAREFUL WITH MULTIPLE SPIKES IN ONE MS
     phases_list = []
@@ -664,7 +791,6 @@ def aux_add_zscored_avg_waveform(df_sua):
     df_added['avg_wf_zscored'] =  [zscore(wf.magnitude) for wf in waveforms]
     wfs_zsc = df_added['avg_wf_zscored'].values
     df_added['amp_wf_zscored'] = [np.max(wf) - np.min(wf) for wf in wfs_zsc]
-    
     return df_added
 
 
@@ -682,7 +808,6 @@ def aux_add_width_classes(df_sua,width_intervals):
             interval = width_intervals[i]
             if (width_row>=interval[0]) & (width_row<=interval[1]):
                 aux_classes.append(names_widths[i])
-    
     df_added['width_wf_class'] = np.array(aux_classes)
     return df_added
 
@@ -695,6 +820,13 @@ def aux_add_selectivity(df_sua,sel_th=0.06):
     df_sua['is_RB_phase_selective'] = select_mask
     return df_sua
 
+
+def first_peak_height_from_waveform(wf):
+    # wf is a 1D numpy array (avg_wf_zscored)
+    min_idx = np.argmin(wf)
+    max_before_idx = np.argmax(wf[:min_idx])
+    return wf[max_before_idx]
+    
 
 def aux_add_final_classes(df_sua,final_classes,peak_height_th):
     """
@@ -711,7 +843,7 @@ def aux_add_final_classes(df_sua,final_classes,peak_height_th):
             aux_df = aux_df[aux_df['width_wf_class']=='narrow']
             idx_list = []
             for idx in aux_df.index:
-                max_before_tr=np.max(aux_df.loc[idx,'avg_wf_zscored'][:30])
+                max_before_tr = first_peak_height_from_waveform(aux_df.loc[idx,'avg_wf_zscored'])
                 if max_before_tr<peak_height_th:
                     idx_list.append(idx)
             dict_cl_indices['DOWN_narrow_shallow'] = idx_list
@@ -720,7 +852,7 @@ def aux_add_final_classes(df_sua,final_classes,peak_height_th):
             aux_df = aux_df[aux_df['width_wf_class']=='narrow']
             idx_list = []
             for idx in aux_df.index:
-                max_before_tr=np.max(aux_df.loc[idx,'avg_wf_zscored'][:30])
+                max_before_tr = first_peak_height_from_waveform(aux_df.loc[idx,'avg_wf_zscored'])
                 if max_before_tr>=peak_height_th:
                     idx_list.append(idx)
             dict_cl_indices['DOWN_narrow_sharp'] = idx_list
@@ -729,7 +861,7 @@ def aux_add_final_classes(df_sua,final_classes,peak_height_th):
             aux_df = aux_df[aux_df['width_wf_class']=='medium']
             idx_list = []
             for idx in aux_df.index:
-                max_before_tr=np.max(aux_df.loc[idx,'avg_wf_zscored'][:30])
+                max_before_tr = first_peak_height_from_waveform(aux_df.loc[idx,'avg_wf_zscored'])
                 if max_before_tr<peak_height_th:
                     idx_list.append(idx)
             dict_cl_indices['DOWN_medium_shallow'] = idx_list
@@ -738,7 +870,7 @@ def aux_add_final_classes(df_sua,final_classes,peak_height_th):
             aux_df = aux_df[aux_df['width_wf_class']=='medium']
             idx_list = []
             for idx in aux_df.index:
-                max_before_tr=np.max(aux_df.loc[idx,'avg_wf_zscored'][:30])
+                max_before_tr = first_peak_height_from_waveform(aux_df.loc[idx,'avg_wf_zscored'])
                 if max_before_tr>=peak_height_th:
                     idx_list.append(idx)
             dict_cl_indices['DOWN_medium_sharp'] = idx_list
@@ -810,7 +942,6 @@ def triggered_prop(spike_vec,rb_sig_vec,rb_env_vec,LFP_vec,
 
 
 def ripple_triggered_prop(ripple_center_vec,EC_ripple_center_vec,EO_ripple_center_vec,
-                          HIGH_ripple_center_vec,ZERO_ripple_center_vec,LOW_ripple_center_vec,
                           rb_sig_vec,rb_env_vec,LFP_vec,
                           spikes_sum_dict_array={},spikes_sum_dict_ch={},
                           width_cut=2000,channel_prop=None,cell_classes=[]):
@@ -822,17 +953,11 @@ def ripple_triggered_prop(ripple_center_vec,EC_ripple_center_vec,EO_ripple_cente
     """
     prop_dict = {}
 
-    for option in ['','_EC','_EO','_HIGH','_ZERO','_LOW']:
+    for option in ['','_EC','_EO']:
         if option=='_EC':
             trig_vec = EC_ripple_center_vec
         elif option=='_EO':
             trig_vec = EO_ripple_center_vec
-        elif option=='_HIGH':
-            trig_vec = HIGH_ripple_center_vec
-        elif option=='_ZERO':
-            trig_vec = ZERO_ripple_center_vec
-        elif option=='_LOW':
-            trig_vec = LOW_ripple_center_vec
         else:
             trig_vec = ripple_center_vec
         
@@ -1064,7 +1189,7 @@ def ripple_triggered_phase_prop_NATIM(ripple_center_vec, rb_phase_vec,
 ########### SHUFFLE PHASES ANALYSIS ##########
 
 
-def shuffle_distrib(spike_vec,rb_phase_vec,rb_env_phase_vec,channel_prop={},num_repeat=100):
+def shuffle_distrib_ph(spike_vec,rb_phase_vec,rb_env_phase_vec,channel_prop={},num_repeat=100):
     """
     Creating dictionary with shuffle distribution data of a given cell,
     the dict. contains the RB phase shuffle, as well as RB env. phase shuffle, and some additional information about the cell. 
@@ -1072,7 +1197,7 @@ def shuffle_distrib(spike_vec,rb_phase_vec,rb_env_phase_vec,channel_prop={},num_
     ### generating repeatedly shifted vectors
     np.random.seed(42)
     spike_indices = np.where(spike_vec>0)[0]
-    shifts = np.random.uniform(low=0,high=len(spike_vec),size=num_repeat)
+    shifts = np.random.uniform(low=0,high=len(spike_vec),size=num_repeat).astype(int)
     
     rolled_phases = [np.roll(rb_phase_vec,shift) for shift in shifts]
     rolled_env_phases = [np.roll(rb_env_phase_vec,shift) for shift in shifts]
@@ -1084,7 +1209,7 @@ def shuffle_distrib(spike_vec,rb_phase_vec,rb_env_phase_vec,channel_prop={},num_
     select_phases = []
     angle_phases = []
     for l in spike_phases_list: # itterating in thee list of lists
-        r, phi = circular_avg(np.array(l),bins=25) # it was 30 here previously, TODO RUN AGAIN AND ERASE
+        r, phi = circular_avg(np.array(l),bins=25) 
         select_phases.append(r)
         angle_phases.append(phi)
     select_phases = np.array(select_phases)
@@ -1093,7 +1218,7 @@ def shuffle_distrib(spike_vec,rb_phase_vec,rb_env_phase_vec,channel_prop={},num_
     select_env_phases = []
     angle_env_phases = []
     for l in spike_env_phases_list:
-        r, phi = circular_avg(np.array(l),bins=25) # 30 as well here in the last run TODO ERASE
+        r, phi = circular_avg(np.array(l),bins=25) 
         select_env_phases.append(r)
         angle_env_phases.append(phi)
     select_env_phases = np.array(select_env_phases)
@@ -1547,7 +1672,10 @@ def find_classes_cells(spike_block,sua_df):
         sp_train = spike_block.segments[0].spiketrains[idx]
         cell_name = sp_train.annotations['nix_name']
         df_cell = sua_df[sua_df['cell_name']==cell_name]
-        cl_list.append(df_cell['final_class'])
+        if len(df_cell['final_class'])==1:
+            cl_list.append(df_cell['final_class'])
+        else:
+            pass
     return cl_list
 
 
@@ -1561,7 +1689,10 @@ def find_channels_cells(spike_block,sua_df):
         sp_train = spike_block.segments[0].spiketrains[idx]
         cell_name = sp_train.annotations['nix_name']
         df_cell = sua_df[sua_df['cell_name']==cell_name]
-        cl_list.append(df_cell['channel_order'])
+        if len(df_cell['channel_order'])==1:
+            cl_list.append(df_cell['channel_order'])
+        else:
+            pass
     return cl_list
 
 
@@ -1670,7 +1801,28 @@ def find_peak(min_pos, min_neg,width_lag=10):
     return max_lag, val_max_lag
 
 
-def shuffle_distrib(spikes_0,spikes_1,lag,repeat,width_lag=10):
+def find_min_no_centre(min_pos, min_neg,width_lag=10):
+    """
+    Finding the minimal lag and its value as measure in units of histogram density.
+    Does not include the interval -1,1
+    """
+    all_dist = list_merge([min_pos,min_neg])
+    
+    # creating bins centered at each integer number, corresponding to lags
+    bin_centers = np.arange(-width_lag, width_lag+1, 1) 
+    bin_edges = bin_centers - 0.5
+    bin_edges = np.append(bin_edges, bin_centers[-1] + 0.5)  # add final edge
+    
+    counts, bin_edges = np.histogram(all_dist,bins=bin_edges,density=True)
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+
+    mask = (bin_centers<-1)|(bin_centers>1)  # mask out bins in [-1, 1]
+    min_lag = bin_centers[mask][np.argmin(counts[mask])]  # find minimum among allowed bins
+    val_min_lag = np.min(counts[mask])
+    return min_lag, val_min_lag
+
+
+def shuffle_distrib(spikes_0,spikes_1,max_lag,min_lag,repeat,width_lag=10):
     """
     Control distribution aux. function for spike LAG statistics.
     Returns values of distribution at max lag, and at the given lag.
@@ -1690,22 +1842,60 @@ def shuffle_distrib(spikes_0,spikes_1,lag,repeat,width_lag=10):
     bin_edges = np.append(bin_edges, bin_centers[-1] + 0.5)  # add final edge
 
     list_max = []
-    list_lag_val = []
+    list_min = []
+    list_max_lag_val = []
+    list_min_lag_val = []
     for vals_list in dist_list:
         counts, bin_edges = np.histogram(np.array(vals_list),bins=bin_edges,density=True)
-        lag_idx = np.where(bin_centers==lag)
-        density_at_lag = counts[lag_idx]
+        max_lag_idx = np.where(bin_centers==max_lag)
+        min_lag_idx = np.where(bin_centers==min_lag)
+        density_at_max_lag = counts[max_lag_idx]
+        density_at_min_lag = counts[min_lag_idx]
         max_density = np.max(counts)
+        min_density = np.min(counts)
         list_max.append(max_density)
-        list_lag_val.append(density_at_lag)
-    return list_max, list_lag_val
+        list_min.append(min_density)
+        list_max_lag_val.append(density_at_max_lag)
+        list_min_lag_val.append(density_at_min_lag)
+    return list_max, list_min, list_max_lag_val, list_min_lag_val
+
+
+def shuffle_distrib_quant(spikes_0,spikes_1,repeat,width_lag=10):
+    """
+    Control distribution aux. function for spike LAG statistics.
+    Returns values of chosen quantiles of distribution at all lags.
+    """
+    shifts = np.random.randint(0, len(spikes_0),size=repeat)
+    all_rolled = [np.roll(spikes_0, shifts[i]) for i in range(repeat)]  # list of rolled copies of vector spikes_0
+    print('Start roll + distance calculation.')
+    start = time.time()
+    dist_list = [list_merge(find_spike_distances(rolled, spikes_1)) for rolled in all_rolled]
+    end = time.time()
+    print(f'Roll applied. Time: {end-start:.4f} seconds.')
+
+    # creating bins centered at each integer number, corresponding to lags
+    bin_centers = np.arange(-width_lag, width_lag+1, 1) 
+    bin_edges = bin_centers - 0.5
+    bin_edges = np.append(bin_edges, bin_centers[-1] + 0.5)  # add final edge
+
+    counts_list = []
+    for vals_list in dist_list:
+        counts, _ = np.histogram(np.array(vals_list),bins=bin_edges,density=True)
+        counts_list.append(counts)
+
+    # stack into shape (repeat, num_bins)
+    counts_matrix = np.vstack(counts_list)
+    print(f'Hist. matrix shape:{counts_matrix.shape}')
+    # Nth percentiles across histograms for each bin. Shape (num_bins,)
+    perc_99, perc_97, perc_95, perc_1, perc_3, perc_5 = np.percentile(counts_matrix, [99,97,95,1,3,5], axis=0)
+    
+    return bin_edges, perc_99, perc_97, perc_95, perc_1, perc_3, perc_5
 
 
 ######### SPECTRUM TRIG. ##########
 
 
 def ripple_spectral_prop(ripple_center_vec,EC_ripple_center_vec,EO_ripple_center_vec,
-                         HIGH_ripple_center_vec,ZERO_ripple_center_vec,LOW_ripple_center_vec,
                          LFP_vec,width_cut_spectra=100,width_cut_wavelet=1000,fs=1000,channel_prop=None):
     """
     Auxiliary for examining the linear fit of ripple envelope.
@@ -1718,12 +1908,6 @@ def ripple_spectral_prop(ripple_center_vec,EC_ripple_center_vec,EO_ripple_center
             trig_vec = EC_ripple_center_vec
         elif option=='_EO':
             trig_vec = EO_ripple_center_vec
-        elif option=='_HIGH':
-            trig_vec = HIGH_ripple_center_vec
-        elif option=='_ZERO':
-            trig_vec = ZERO_ripple_center_vec
-        elif option=='_LOW':
-            trig_vec = LOW_ripple_center_vec
         else:
             trig_vec = ripple_center_vec
 
@@ -1799,5 +1983,90 @@ def aux_calculate_pairs(classes,channels,layout,all_class_pairs):
     return all_classes_pairs, all_classes_close_pairs
 
 
+####################### SPECTRUM LAYER COMPARISON ###############################
 
+def aux_units_on_ch(df_sua_all,array,final_classes):
+    """
+    Returns dictionary with unit types on each of the channels.
+    """
+    df_arr = df_sua_all[df_sua_all['array']==array]
+    ch_dict = {k:[] for k in range(64)}
+    for ch in range(64):
+        df_arr_ch = df_arr[df_arr['channel_order']==ch]
+        for cl in final_classes:
+            df_cl = df_arr_ch[df_arr_ch['final_class']==cl]
+            num_cl_ch = df_cl.shape[0]
+            for i in range(num_cl_ch):
+                ch_dict[ch].append(cl)
+    return ch_dict
 
+def aux_dominant_clique_on_ch(ch_dict):
+    """
+    Given the distribution of units per channel decides which clique it belongs to.
+    """
+    clique_dict = {}
+    for ch in range(64):
+        ch_classes = ch_dict[ch]
+        count_orange = sum(v in ['DOWN_wide', 'DOWN_narrow_shallow','DOWN_medium_shallow'] for v in ch_classes)
+        count_blue = sum(v in ['UP', 'DOWN_wide','DOWN_narrow_sharp','DOWN_medium_sharp'] for v in ch_classes)
+        if count_orange<1 & count_blue<1:
+            clique_dict[ch] = 'white'
+        elif count_orange>count_blue:
+            clique_dict[ch] = 'orange'
+        elif count_orange<count_blue:
+            clique_dict[ch] = 'blue'
+        else:
+            clique_dict[ch] = 'gray'
+    return clique_dict
+
+def cut_out_LFP(lfp_block,trial_csv,buffer=200):
+    """
+    Out of the LFP block cuts out only T buffer part before stimulation onset.
+    Returns list of LFP blocks, each with 64 rows (channels).
+    """
+    times_ms = np.int64(trial_csv['Trial_start_s'].values*1000)
+    start_t_ms = np.int64(lfp_block.segments[0].t_start.rescale('ms').magnitude)
+    lfp_arr = sig_block_to_arr(lfp_block,'LFP_zsc')
+    times_ms_shifted = times_ms - start_t_ms
+    lfp_arr_list = [lfp_arr[:,t - buffer : t] for t in times_ms_shifted if t - buffer >= 0]
+    return np.hstack(lfp_arr_list)
+
+def aux_split_idx(clique_dict):
+    """
+    Returns indices of blue and orange cliques.
+    """
+    blue_keys = [k for k, v in clique_dict.items() if v == 'blue']
+    orange_keys = [k for k, v in clique_dict.items() if v == 'orange']
+    return blue_keys, orange_keys
+
+def aux_split_lfp(lfp_arr,blue_cl_idx,orange_cl_idx):
+    """
+    Out of the list with blocks of LFP cut out single channel LFP, 
+    and splits into three lists - orange, blue, and the rest.
+    """
+    blue_lfps   = lfp_arr[blue_cl_idx,:]
+    orange_lfps = lfp_arr[orange_cl_idx,:]
+    other_mask = ~np.isin(np.arange(64), np.concatenate([blue_cl_idx, orange_cl_idx]))
+    other_lfps = lfp_arr[other_mask,:]
+    return blue_lfps, orange_lfps, other_lfps
+
+def spectrum_list(lfp_arr,nperseg):
+    """
+    Takes as an input list of cut out LFP, 
+    returns list of their spectra.
+    """
+    f, psds = welch(lfp_arr, fs=1000, axis=1, nperseg=nperseg)
+    return psds, f
+
+def aux_pick_f_psd(aux_dict,monkey,f_min,f_max,mean_for_array=False):
+    """
+    Cutting out only chosen frequencies out of precalculated psds.
+    """
+    data = aux_dict[monkey]
+    data = [a for a in data if a.shape[0]>0]
+    if mean_for_array:
+        data = [np.mean(a,axis=0) for a in data if a.shape[0]>0]
+        #print(data[0].shape)
+    all_psds = np.vstack(data)
+    mask = (f>=f_min) & (f<=f_max)
+    return all_psds[:,mask]

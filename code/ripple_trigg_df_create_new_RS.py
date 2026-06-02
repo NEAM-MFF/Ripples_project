@@ -7,7 +7,7 @@ import neo
 import sys
 import elephant
 
-with open("/CSNG/studekat/ripple_band_project/code/params_analysis.yml") as f:
+with open("/CSNG/studekat/ripple_paper_clean/code/params_analysis.yml") as f:
     params = yaml.safe_load(f)
 
 MAIN_FOLDER = params['main_folder']
@@ -16,12 +16,8 @@ DATES = params['dates']
 FINAL_CLASSES = params['final_classes']
 
 DF_FOLDER = f'{MAIN_FOLDER}/dataframes' ### here the resulting dataframes will be saved
-MONKEY_LIST = ['L','N','F']
 
 DUAL_TH = [2.5,3.5]
-LOW_TH_RATIO = 0.4
-HIGH_TH_RATIO = 0.6
-
 LOWPASS = 40
 
 if len(sys.argv) < 2:
@@ -30,7 +26,7 @@ if len(sys.argv) < 2:
     
 task_id = int(sys.argv[1])  # SLURM_ARRAY_TASK_ID
 monkeys = ['L', 'N', 'F']
-trigg_points = ['start', 'first_pos_peak', 'first_neg_peak', 'env_max_peak', 'signal_max_pos_peak', 'signal_max_neg_peak','stop']
+trigg_points = ['start', 'first_pos_peak', 'first_neg_peak', 'signal_max_pos_peak', 'signal_max_neg_peak','stop'] # 'env_max_peak'
 
 combinations = [(m, t) for m in monkeys for t in trigg_points]
 monkey, trigg_point = combinations[task_id]
@@ -51,7 +47,7 @@ for date in params['dates'][monkey]['RS']:
             try:
                 df_ripp_arr = load_ripples_df([monkey],dual_th=DUAL_TH,date=date,array=array,area=None,condition='RS',
                                             params=params,df_folder=DF_FOLDER,exclude_noisy=True,verbose=False)
-                spike_block = load_block(monkey,array,type_rec='RS',type_sig='spikes',date=date,data_folder=DATA_FOLDER)  # SUA
+                spike_block = load_block(monkey,array,type_rec='RS',type_sig='spikes_KS4',date=date,data_folder=DATA_FOLDER)  # SUA
                 RB_block = load_block(monkey,array,type_rec='RS',type_sig='RB',date=date,data_folder=DATA_FOLDER)  # Ripple band
                 LFP_block = load_block(monkey,array,type_rec='RS',type_sig='LFP',date=date,data_folder=DATA_FOLDER)  # LFP non-norm.
                 num_cells = len(spike_block.segments[0].spiketrains)
@@ -81,16 +77,7 @@ for date in params['dates'][monkey]['RS']:
                     rb_envelope_arr = rb_envelope_arr/rb_envelope_arr.std(axis=1,keepdims=True)
                     
                 LFP_arr = sig_block_to_arr(LFP_block,'LFP_zsc')
-
                 spike_arr = spike_block_to_arr(spike_block)
-
-                # cutting out common times only for N and F, already well aligned for A and L
-                if monkey in ['N','F']:
-                    rb_sig_arr = cut_abs_times(rb_sig_arr,start_t_RB_ms,monkey,rec_type='RS',date=date,params=params)
-                    rb_envelope_arr = cut_abs_times(rb_envelope_arr,start_t_RB_ms,monkey,rec_type='RS',date=date,params=params)
-                    LFP_arr = cut_abs_times(LFP_arr,start_t_LFP_ms,monkey,rec_type='RS',date=date,params=params)
-                    
-                    spike_arr = cut_abs_times(spike_arr,start_t_spikes_ms,monkey,rec_type='RS',date=date,params=params)
 
                 # creating spike vectors grouped by cell class, spikes on the whole array considered
                 cell_classes = np.array(find_classes_cells(spike_block,df_sua))
@@ -135,7 +122,7 @@ for date in params['dates'][monkey]['RS']:
                                     'start': 'start_time_ms',
                                     'first_pos_peak': 'first_pos_peak_time_ms',
                                     'first_neg_peak': 'first_neg_peak_time_ms',
-                                    'env_max_peak': 'envelope_peak_time_ms',
+                                    #'env_max_peak': 'envelope_peak_time_ms',
                                     'signal_max_pos_peak': 'positive_peak_time_ms',
                                     'signal_max_neg_peak': 'negative_peak_time_ms',
                                     'stop': 'stop_time_ms'
@@ -156,18 +143,12 @@ for date in params['dates'][monkey]['RS']:
                         df_ch = df_ch[df_ch['eyes_closed'].notna()]  # not using non-classified times of recording
                         df_ch_EC = df_ch[df_ch['eyes_closed']]
                         df_ch_EO = df_ch[np.logical_not(df_ch['eyes_closed'])]
-                        df_ch_high_ratio = df_ch[df_ch['peak_position_ratio']>HIGH_TH_RATIO]
-                        df_ch_low_ratio = df_ch[df_ch['peak_position_ratio']<=LOW_TH_RATIO]
-                        df_ch_zero_ratio = df_ch[(df_ch['peak_position_ratio']>LOW_TH_RATIO) & (df_ch['peak_position_ratio']<=HIGH_TH_RATIO)]
 
                         ### EYES CLOSED/OPEN RIPPLES, EARLY, MID and LATE PEAK ripples
                         if trigg_point in trigger_dict:
                             column_name = trigger_dict[trigg_point]
                             EC_only_common_peaks = df_ch_EC[column_name].values + arr_start
                             EO_only_common_peaks = df_ch_EO[column_name].values + arr_start
-                            HIGH_only_common_peaks = df_ch_high_ratio[column_name].values + arr_start 
-                            LOW_only_common_peaks = df_ch_low_ratio[column_name].values + arr_start 
-                            ZERO_only_common_peaks = df_ch_zero_ratio[column_name].values + arr_start 
                         else:
                             print(f"Invalid trigg_point: {trigg_point}")
                             raise SystemExit("Exiting due to invalid trigger parameter.")
@@ -183,27 +164,8 @@ for date in params['dates'][monkey]['RS']:
                         EO_ripple_center_vec = np.zeros(LFP_vec.shape[0])
                         EO_ripp_centers_in_common_time = EO_ripp_centers_in_common_time[EO_ripp_centers_in_common_time<LFP_vec.shape[0]]
                         EO_ripple_center_vec[EO_ripp_centers_in_common_time] = 1
-                            
-                        HIGH_only_common_peaks = HIGH_only_common_peaks[HIGH_only_common_peaks>common_start]
-                        HIGH_ripp_centers_in_common_time = (HIGH_only_common_peaks - common_start).astype(np.int64)
-                        HIGH_ripple_center_vec = np.zeros(LFP_vec.shape[0])
-                        HIGH_ripp_centers_in_common_time = HIGH_ripp_centers_in_common_time[HIGH_ripp_centers_in_common_time<LFP_vec.shape[0]]
-                        HIGH_ripple_center_vec[HIGH_ripp_centers_in_common_time] = 1
-
-                        ZERO_only_common_peaks = ZERO_only_common_peaks[ZERO_only_common_peaks>common_start]
-                        ZERO_ripp_centers_in_common_time = (ZERO_only_common_peaks - common_start).astype(np.int64)
-                        ZERO_ripple_center_vec = np.zeros(LFP_vec.shape[0])
-                        ZERO_ripp_centers_in_common_time = ZERO_ripp_centers_in_common_time[ZERO_ripp_centers_in_common_time<LFP_vec.shape[0]]
-                        ZERO_ripple_center_vec[ZERO_ripp_centers_in_common_time] = 1
-
-                        LOW_only_common_peaks = LOW_only_common_peaks[LOW_only_common_peaks>common_start]
-                        LOW_ripp_centers_in_common_time = (LOW_only_common_peaks - common_start).astype(np.int64)
-                        LOW_ripple_center_vec = np.zeros(LFP_vec.shape[0])
-                        LOW_ripp_centers_in_common_time = LOW_ripp_centers_in_common_time[LOW_ripp_centers_in_common_time<LFP_vec.shape[0]]
-                        LOW_ripple_center_vec[LOW_ripp_centers_in_common_time] = 1
 
                         prop_dict = ripple_triggered_prop(ripple_center_vec,EC_ripple_center_vec,EO_ripple_center_vec,
-                                                          HIGH_ripple_center_vec,ZERO_ripple_center_vec,LOW_ripple_center_vec,
                                                           rb_sig_vec,rb_env_vec,LFP_vec,
                                                           spikes_sum_dict_array=spikes_sum_dict_array,spikes_sum_dict_ch=spikes_sum_dict_ch,
                                                           width_cut=10000,cell_classes=params['final_classes'],channel_prop=channel_prop)

@@ -9,7 +9,7 @@ import neo
 import sys
 import elephant
 
-with open("/CSNG/studekat/ripple_band_project/code/params_analysis.yml") as f:
+with open("/CSNG/studekat/ripple_paper_clean/code/params_analysis.yml") as f:
     params = yaml.safe_load(f)
 
 DATA_FOLDER = params['data_folder'] ### folder with all the preprocessed data
@@ -51,7 +51,7 @@ for date in params['dates'][monkey]['RS']:
             try:
                 df_ripp_arr = load_ripples_df([monkey],dual_th=DUAL_TH,date=date,array=array,area=None,condition='RS',
                                             params=params,df_folder=DF_FOLDER,exclude_noisy=True,verbose=False)
-                spike_block = load_block(monkey,array,type_rec='RS',type_sig='spikes',date=date,data_folder=DATA_FOLDER)  # SUA
+                spike_block = load_block(monkey,array,type_rec='RS',type_sig='spikes_KS4',date=date,data_folder=DATA_FOLDER)  # SUA
                 RB_block = load_block(monkey,array,type_rec='RS',type_sig='RB',date=date,data_folder=DATA_FOLDER)  # Ripple band
                 num_cells = len(spike_block.segments[0].spiketrains)
                 
@@ -69,9 +69,11 @@ for date in params['dates'][monkey]['RS']:
                 spike_arr = spike_block_to_arr(spike_block)  # bined spikes
 
                 # cutting out common times only for N and F, already well aligned for A and L
+                """
                 if monkey in ['N','F']:
                     rb_phase_arr = cut_abs_times(rb_phase_arr,start_t_RB_ms,monkey,rec_type='RS',date=date,params=params)
                     spike_arr = cut_abs_times(spike_arr,start_t_spikes_ms,monkey,rec_type='RS',date=date,params=params)
+                """
 
                 cell_channels = np.array(find_channels_cells(spike_block,df_sua))
                 cell_selective = np.array(find_selective_cells(spike_block,df_sua))

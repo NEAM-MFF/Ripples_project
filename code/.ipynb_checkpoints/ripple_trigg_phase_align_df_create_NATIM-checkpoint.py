@@ -7,12 +7,14 @@ import neo
 import sys
 import elephant
 
-with open("/CSNG/studekat/ripple_band_project/code/params_analysis.yml") as f:
+with open("/CSNG/studekat/ripple_paper_clean/code/params_analysis.yml") as f:
     params = yaml.safe_load(f)
 
 DATA_FOLDER = params['natim_data_folder']
 DATES = params['dates']
 FINAL_CLASSES = params['final_classes']
+
+MAIN_FOLDER = '/CSNG/studekat/ripple_paper_clean'
 
 DF_FOLDER = f'{MAIN_FOLDER}/dataframes' ### here the resulting dataframes will be saved
 MONKEY_LIST = ['N','F']
@@ -48,8 +50,10 @@ for date in params['dates'][monkey]['NATIM']:
             try:
                 df_ripp_arr = load_ripples_df([monkey],dual_th=DUAL_TH,date=date,array=array,area=None,condition='NATIM',
                                             params=params,df_folder=DF_FOLDER,exclude_noisy=True,verbose=False)
-                spike_block = load_block(monkey,array,type_rec='NATIM',type_sig='spikes',date=date,data_folder=DATA_FOLDER)  # SUA
+                print('Ripples loaded.')
+                spike_block = load_block(monkey,array,type_rec='NATIM',type_sig='spikes_KS4',date=date,data_folder=DATA_FOLDER)  # SUA
                 RB_block = load_block(monkey,array,type_rec='NATIM',type_sig='RB',date=date,data_folder=DATA_FOLDER)  # Ripple band
+                print('Spikes and RB loaded.')
                 num_cells = len(spike_block.segments[0].spiketrains)
                 
                 start_t_spikes_ms = int(np.floor(np.float64(spike_block.segments[0].spiketrains[0].t_start.rescale('ms').magnitude)))
