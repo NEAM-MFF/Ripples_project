@@ -13,13 +13,13 @@ Figure 1 + Figure 2 (Ripples):
 - ripple_trigg_df_create_new_RS.py
 - ripple_trigg_spectra_create_RS.py
 
-Figure 3 + Figure 4 (Single units):
+Figure 3 + Figure 4 + Figure 5 (Single units):
 - SUA_RS_prop_pkl_create.py
 - shuffle_phases_df.py
-- ripplw_trigg_phase_align_df_create_RS.py
+- ripple_trigg_phase_align_df_create_RS.py
 - graph_SUA_preprocess.py
 
-Figure 5:
+Figure 6:
 - all the scripts labeled as _NATIM
 
 The plots are created within Jupyter notebooks, labeled with numbers of Figures (F) and Supplmentary Figures (SF).
