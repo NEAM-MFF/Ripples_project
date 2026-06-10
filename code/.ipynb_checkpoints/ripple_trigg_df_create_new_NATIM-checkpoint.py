@@ -1,3 +1,5 @@
+### Ripple triggered LFP, spikes, filtered RB for NATIM files ###
+
 from functions_analysis import *
 import pandas as pd
 import numpy as np

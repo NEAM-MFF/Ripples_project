@@ -1,4 +1,4 @@
-##### SHUFFLE ANALYSIS FOR RS SUA #####
+##### SHUFFLE ANALYSIS FOR RS SUA (for phases null distirbution) #####
 
 from functions_analysis import *
 import pandas as pd

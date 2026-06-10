@@ -1,4 +1,4 @@
-######## Ripple-triggered phase aligned spikes ##########
+######## Ripple-triggered phase aligned spikes, RS ##########
 
 from functions_analysis import *
 import pandas as pd

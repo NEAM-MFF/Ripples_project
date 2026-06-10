@@ -1,3 +1,5 @@
+### Figure 1, preprocessing delta for analysis of its relationship with RB
+
 from functions_analysis import *
 import pandas as pd
 import numpy as np
@@ -20,7 +22,6 @@ DATES = params['dates']
 AREAS = params['areas']
 
 ### RIPPLE ENVELOPE ###
-
 # For each monkey, we have three dictionaries: All, EC, EO. In each of them, dictionary with array-wise ripple envelope avg. np array
 
 dates_list = list_merge([DATES['L']['RS'],DATES['N']['RS'],DATES['F']['RS']])
@@ -75,7 +76,7 @@ print("Dictionary saved as all_env_dict.pkl")
 
 
 ### DELTA FILTERED ###
-# For each monkey, we have three dictionaries: All, EC, EO. In each of them, dictionary with array-wise ripple envelope avg. np array
+# For each monkey, we have three dictionaries: All, EC, EO. In each of them, dictionary with array-wise delta avg. np array
 
 dates_list = list_merge([DATES['L']['RS'],DATES['N']['RS'],DATES['F']['RS']])
 monkeys_list = ['L','L','L','N','N','F','F','F']

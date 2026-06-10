@@ -1,3 +1,5 @@
+### Preprocessing for graph of neighbouring unit types in RS recordings ###
+
 from functions_analysis import *
 from functions_plotting import *
 import pandas as pd

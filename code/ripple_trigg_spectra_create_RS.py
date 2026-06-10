@@ -1,4 +1,4 @@
-########## Ripple triggered spectrum ##########
+########## Ripple triggered spectrum, RS ##########
 
 from functions_analysis import *
 import pandas as pd

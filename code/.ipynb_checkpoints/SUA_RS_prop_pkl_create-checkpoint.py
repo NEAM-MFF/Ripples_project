@@ -1,3 +1,5 @@
+# Preprocessing SUA properties, mainly classification of units, for Resting state
+
 from functions_analysis import *
 import pandas as pd
 import numpy as np

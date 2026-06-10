@@ -640,9 +640,7 @@ def aux_RB_noise_prop(sig_vec,fs=1000):
 
 def spike_train_prop_vec(spike_vector,rb_sig,LFP_sig,rb_phase,rb_envelope,rb_env_phase,
                          channel_prop=None,indicator=None,indicator_name=None):
-    """
-    TODO better description
-    
+    """    
     Calculates properties of one spiketrain (already binned in the spike_vector).
     """
     if indicator is not None:

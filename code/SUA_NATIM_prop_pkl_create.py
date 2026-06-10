@@ -1,3 +1,5 @@
+# Preprocessing SUA properties in NATIM files (mainly cell classification)
+
 from functions_analysis import *
 import pandas as pd
 import numpy as np

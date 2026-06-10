@@ -1,3 +1,5 @@
+### Ripple triggered phase aligned SUA properties, NATIM ###
+
 from functions_analysis import *
 import pandas as pd
 import numpy as np

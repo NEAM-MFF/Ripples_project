@@ -5,7 +5,7 @@ main_folder: '/CSNG/studekat/ripple_paper_clean'  # Folder with code and datafra
 monkeys: ['L','N','F']
 
 areas:
-    'L': ['V1','V4','V4','V1','V1','V1','V1','V1','V1','V1','V1','V1','V1','V1','V1','V1']  # not using V2
+    'L': ['V1','V4','V4','V1','V1','V1','V1','V1','V1','V1','V1','V1','V1','V1','V1','V1']  # not using V2, the authors say it was borderline and we can merge
     'N': ['V1','V1','V1','V1','V1','V1','V1','V1','V4','V4','V4','V4','IT','IT','IT','IT']
     'F': ['V1','V1','V1','V1','V1','V1','V1','V1','IT','IT','IT','V4','V4','V4','V4','V1']
 

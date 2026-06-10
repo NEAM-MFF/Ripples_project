@@ -1,3 +1,5 @@
+### Ripple triggered LFP, filtered, and Spikes for RS ### 
+
 from functions_analysis import *
 import pandas as pd
 import numpy as np

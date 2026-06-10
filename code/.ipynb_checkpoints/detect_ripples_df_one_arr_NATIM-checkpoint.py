@@ -1,4 +1,4 @@
-### CREATE DATAFRAMES WITH DETECTED RIPPLES ###
+### CREATE DATAFRAMES WITH DETECTED RIPPLES, NATIM ###
 from functions_analysis import *
 import pandas as pd
 import numpy as np

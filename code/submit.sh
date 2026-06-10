@@ -20,7 +20,6 @@ cd /CSNG/studekat/ripple_paper_clean/code
 ## python detect_ripples_df_one_arr_RS.py $SLURM_ARRAY_TASK_ID
 ## python ripple_trigg_df_create_new_RS.py $SLURM_ARRAY_TASK_ID
 ## python cell_pairs_testing_different_bin_RS.py $SLURM_ARRAY_TASK_ID
-python SUA_RS_prop_pkl_create.py $SLURM_ARRAY_TASK_ID
 ## python ripple_trigg_spectra_create_RS.py $SLURM_ARRAY_TASK_ID
 ## python cell_pairs_testing_different_bin_RS.py $SLURM_ARRAY_TASK_ID
 ## python ripple_trigg_phase_align_df_create_RS.py $SLURM_ARRAY_TASK_ID
@@ -28,3 +27,5 @@ python SUA_RS_prop_pkl_create.py $SLURM_ARRAY_TASK_ID
 ## python shuffle_phases_df.py
 ## python graph_SUA_preprocess.py
 ## python hypnogram_df.py
+
+python SUA_RS_prop_pkl_create.py $SLURM_ARRAY_TASK_ID
