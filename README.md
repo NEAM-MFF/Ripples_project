@@ -1,4 +1,4 @@
-# Class-specific coupling of single-unit firing to cortical ripples in macaque V1
+# Cell-type-specific coupling of single-unit spikes and cortical ripples in macaque and human V1 
 
 The analysis of ripple band oscillations and their generation mechanisms.
 The scripts for data preprocessing can be run and paralelised via .sh submit files.
@@ -13,14 +13,17 @@ Figure 1 + Figure 2 (Ripples):
 - ripple_trigg_df_create_new_RS.py
 - ripple_trigg_spectra_create_RS.py
 
-Figure 3 + Figure 4 + Figure 5 (Single units):
+Figure 3 + Figure 4 (Single units):
 - SUA_RS_prop_pkl_create.py
 - shuffle_phases_df.py
 - ripple_trigg_phase_align_df_create_RS.py
 - graph_SUA_preprocess.py
 
-Figure 6:
-- all the scripts labeled as _NATIM
+Figure 5:
+- all the scripts labeled as NATIM
 
+Figure 6:
+- all the scripts labeled as HUMAN
+  
 The plots are created within Jupyter notebooks, labeled with numbers of Figures (F) and Supplmentary Figures (SF).
 
