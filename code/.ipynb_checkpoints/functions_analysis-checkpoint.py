@@ -46,6 +46,26 @@ def load_block(monkey,array,type_rec,type_sig,date,data_folder=''):
         print(path)
 
 
+def load_block_human(patient,type_rec,type_sig,date,data_folder=''):
+    """
+    Loading the blind human data (already preprocessed as in the snake files).
+    
+    type_rec: All      ### TODO change if more types of data is added alongside spontaneous
+    type_sig: LFP, RB, tMUA, spikes
+    """
+    if type_rec=='All':
+        path = f'{data_folder}/{patient}/spontaneous/{type_sig}/{date}_{type_sig}.nix'
+    else:
+        print('Not implemented type_rec.')
+        return None
+    try:
+        io = neo.NixIO(path,'ro')
+        block = io.read_block()
+        return block
+    except:
+        print(f'Not loaded path: {path}')
+
+
 def load_prop_df(monkey_list,condition='RS',params={},df_folder='',exclude_noisy=True):
     """
     Loads DF with all the SUA properties, for all dates in params, all monkeys in monkey list merged.
@@ -77,6 +97,51 @@ def load_prop_df(monkey_list,condition='RS',params={},df_folder='',exclude_noisy
         else:
             a_list.append('V12')
     df_merged['area_merged'] = a_list
+    if exclude_noisy:
+        df_merged = df_merged[~df_merged['ch_is_noisy_100Hz']]
+        df_merged = df_merged[~df_merged['ch_is_noisy_120Hz']]
+    return df_merged
+
+
+def load_prop_df_human(patient,condition='All',params={},df_folder='',exclude_noisy=True):
+    """
+    Loads DF with all the SUA properties, for all dates in params, all monkeys in monkey list merged.
+    """
+    df_list = []
+    print(patient)
+    all_dates = params['dates_human'][patient]
+    for date in all_dates:
+        print(date)
+        try:
+            with open(f'{df_folder}/sua_prop_all/{date}.pkl', "rb") as file:
+                 df_sua = pickle.load(file)
+            df_list.append(df_sua)
+        except:
+            print(f'For {date} the DFs were not added.')
+    df_merged = pd.concat(df_list,ignore_index=True)
+    if exclude_noisy:
+        df_merged = df_merged[~df_merged['ch_is_noisy_100Hz']]
+        df_merged = df_merged[~df_merged['ch_is_noisy_120Hz']]
+    return df_merged
+
+
+def load_prop_df_all_humans(patients,condition='All',params={},df_folder='',exclude_noisy=True):
+    """
+    Loads DF with all the SUA properties, for all dates in params, all monkeys in monkey list merged.
+    """
+    df_list = []
+    for patient in patients:
+        print(patient)
+        all_dates = params['dates_human'][patient]
+        for date in all_dates:
+            print(date)
+            try:
+                with open(f'{df_folder}/sua_prop_all/{date}.pkl', "rb") as file:
+                     df_sua = pickle.load(file)
+                df_list.append(df_sua)
+            except:
+                print(f'For {date} the DFs were not added.')
+    df_merged = pd.concat(df_list,ignore_index=True)
     if exclude_noisy:
         df_merged = df_merged[~df_merged['ch_is_noisy_100Hz']]
         df_merged = df_merged[~df_merged['ch_is_noisy_120Hz']]
@@ -122,6 +187,59 @@ def load_ripples_df(monkey_list,dual_th,date=None,array=None,area=None,condition
                         print(f'The data for array {arr} were not loaded.')
                     else:
                         pass
+    df_merged = pd.concat(df_list,ignore_index=True)
+    if exclude_noisy:
+        df_merged = df_merged[~df_merged['bad_channel']]
+    return df_merged
+
+
+def load_ripples_df_human(patient,dual_th,dates=[],condition='All',params={},df_folder='',exclude_noisy=True,verbose=False):
+    """
+    Loading ripple dataframes for a given patient, in one concatenated DF.
+    """
+    df_list = []
+    print(patient)
+    for aux_date in dates:
+        if verbose:
+            print(aux_date)
+        try:
+            folder_name = f'{df_folder}/All_ripples_lowpass_40Hz_min_dur_40/{patient}/'               
+            df_ripp = pd.read_csv(f'{folder_name}/th__{int(dual_th[0]*10)}_{int(dual_th[1]*10)}_{aux_date}_ripples.csv')
+            df_list.append(df_ripp)
+            if verbose:
+                print(f'The data for {aux_date} were loaded.')
+        except:
+            if verbose:
+                print(f'The data for {aux_date} were not loaded.')
+            else:
+                pass
+    df_merged = pd.concat(df_list,ignore_index=True)
+    if exclude_noisy:
+        df_merged = df_merged[~df_merged['bad_channel']]
+    return df_merged
+
+
+def load_ripples_df_all_humans(patients,dual_th,condition='All',params={},df_folder='',exclude_noisy=True,verbose=False):
+    """
+    Loading ripple dataframes for a given patient, in one concatenated DF.
+    """
+    df_list = []
+    for patient in patients:
+        print(patient)
+        for aux_date in params['dates_human'][patient]:
+            if verbose:
+                print(aux_date)
+            try:
+                folder_name = f'{df_folder}/All_ripples_lowpass_40Hz_min_dur_40/{patient}/'               
+                df_ripp = pd.read_csv(f'{folder_name}/th__{int(dual_th[0]*10)}_{int(dual_th[1]*10)}_{aux_date}_ripples.csv')
+                df_list.append(df_ripp)
+                if verbose:
+                    print(f'The data for {aux_date} were loaded.')
+            except:
+                if verbose:
+                    print(f'The data for {aux_date} were not loaded.')
+                else:
+                    pass
     df_merged = pd.concat(df_list,ignore_index=True)
     if exclude_noisy:
         df_merged = df_merged[~df_merged['bad_channel']]
@@ -297,6 +415,27 @@ def aux_electrodeID_to_ch_order(monkey,date,electrode_ID,array_ID,data_folder=''
     for sp_tr_idx in range(64):
         sp_tr = tMUA_block.segments[0].spiketrains[sp_tr_idx]
         el_id = sp_tr.annotations['Electrode_ID']
+        if el_id == electrode_ID:
+            ch = sp_tr_idx
+    if ch==-1:
+        print('Channel not mapped.')
+    return ch
+
+def aux_electrodeID_to_ch_order_human(patient,date,electrode_ID,data_folder='',type_rec='All'):
+    """
+    Returns channel order in 0 to 95 for a given electrode ID on an array. 
+    (channel indexing as in tMUA files)
+    """
+    ### we also open tMUA block, to find the correct row corresponding to ElectrodeID
+    if type_rec=='All':  # We will map based on different tMUA
+        tMUA_block = load_block_human(patient,type_rec,'tMUA',date,data_folder=data_folder)  # date should be given as a resting state date
+    else: 
+        print('Not implemented type_rec.')
+        return None
+    ch = -1
+    for sp_tr_idx in range(96):
+        sp_tr = tMUA_block.segments[0].spiketrains[sp_tr_idx]
+        el_id = sp_tr.annotations['new_electrode_ids']
         if el_id == electrode_ID:
             ch = sp_tr_idx
     if ch==-1:
@@ -1184,6 +1323,40 @@ def ripple_triggered_phase_prop_NATIM(ripple_center_vec, rb_phase_vec,
     return prop_dict
 
 
+def ripple_triggered_phase_prop_HUMAN(ripple_center_vec,rb_phase_vec,spikes_sum_dict_ch={},
+                          width_cut=5000,channel_prop=None,cell_classes=[]):
+    """
+    Creating dictionary with phases of the ripple trig. SUA. 
+    The phase is aligned to trigger.
+    """
+    prop_dict = {}
+    trig_vec = ripple_center_vec
+
+    # Cutting out windows of phase around ripples + concatenating
+    phase_vec_list = trigg_list(trig_vec,rb_phase_vec,width_idx=width_cut)
+    phase_vec_list = [aux_add_phase_peak(vec,idx_0=width_cut) for vec in phase_vec_list]  # making the phase non-circular
+    phase_cut_out = np.concatenate(phase_vec_list)  
+    
+    for cl in cell_classes:
+        sua_vec_list = trigg_list(trig_vec,spikes_sum_dict_ch[cl],width_idx=width_cut)
+        sua_cut_out = np.concatenate(sua_vec_list)  
+
+        # ALL SPIKES
+        phases_list = []
+        aux_sp = copy.deepcopy(sua_cut_out)
+        while np.sum(aux_sp)>0:
+            non_zero_idx = np.where(aux_sp>0)[0]
+            for idx in non_zero_idx:
+                phases_list.append(phase_cut_out[idx]) 
+                aux_sp[idx]-=1 ### subtracting spikes that we have already used
+        prop_dict[f'phases_spikes_{cl}'] = phases_list
+        
+    if channel_prop is not None:
+        for k in channel_prop.keys():
+            prop_dict[k] = channel_prop[k]
+    return prop_dict
+
+
 ########### SHUFFLE PHASES ANALYSIS ##########
 
 
@@ -1660,6 +1833,223 @@ def ripple_prop(monkey, array, date, dual_th=[2.5,3.5], f_range= [80,150],
     return df
 
 
+def ripple_prop_human(patient,date, dual_th=[2.5,3.5], f_range=[80,150], 
+                type_rec='All', magnitude_type='amplitude', avg_type='std', 
+                EC_indicator=None, min_burst_duration = 0.04, fs=1000,lowpass_freq=None,
+                data_folder='',params={}):
+    """
+    Args:
+        patient: patient ID, needed for epochs dataframe input
+        date: date of recording
+        dual_th: parameter dual_thresh from detect_burst_dual_threshold
+        f_range: ripple band range (WILL NOT BE USED FOR FILTERING, JUST FOR MINIMAL CYCLES SETTING, MAYBE ERASE)
+        min_burst_duration: Minimal duration of detected bursts. Defaults to 0.04 s
+        method: 'std', 'mean','median' - normalisation method for units of threshold
+        bad_channel_list: list of indices of bad channels, ordering as in the RB sig. array. From 0 to 95.
+
+    Returns: pd.DataFrame with statistics about individual ripples
+    """
+
+    LFP_block = load_block_human(patient,type_rec=type_rec,type_sig='LFP',date=date,data_folder=data_folder)
+    RB_block = load_block_human(patient,type_rec=type_rec,type_sig='RB',date=date,data_folder=data_folder)
+    RB_sig_array = sig_block_to_arr(RB_block,'RB_filtered_zsc')
+    RB_env_array = sig_block_to_arr(RB_block,'RB_envelope_norm')
+    LFP_array = sig_block_to_arr(LFP_block,'LFP_zsc')
+
+    if lowpass_freq is not None:
+        RB_env_array = elephant.signal_processing.butter(RB_env_array, highpass_frequency=None, lowpass_frequency=lowpass_freq, 
+                                                    order=6, filter_function='sosfiltfilt',sampling_frequency=fs, axis=-1)
+        # renormalize, because we filtered again
+        RB_env_array = RB_env_array/RB_env_array.std(axis=1,keepdims=True)
+    
+    list_ripples = []
+    
+    n_channels = 96
+    start_rec = float(RB_block.segments[0].analogsignals[0].t_start.rescale('ms').magnitude)
+    stop_rec = float(RB_block.segments[0].analogsignals[0].t_stop.rescale('ms').magnitude)
+    #print(start_rec)
+
+    if EC_indicator is not None:
+        if diff_times>0:
+            print(f'Extending EC indicator by {diff_times} ms.')
+            EC_indicator = np.hstack([np.zeros(int(diff_times)),EC_indicator])
+    
+    for ch in range(n_channels):
+        ripple_sig_ch = RB_sig_array[ch,:]
+        ripple_env_ch = RB_env_array[ch,:]
+        LFP_ch = LFP_array[ch,:]
+
+        noise100, noise120 = aux_RB_noise_prop(ripple_sig_ch,fs=1000)
+        bad_channel = noise100 | noise120
+        
+        burst_vector = detect_bursts_dual_th(ripple_env_ch, fs=1000, dual_thresh=dual_th, 
+                                             min_n_cycles=None,min_burst_duration=min_burst_duration, avg_type=avg_type, 
+                                             magnitude_type=magnitude_type, EC_indicator = EC_indicator)
+
+        change = np.diff(burst_vector)  # locates the starts and ends of bursts
+        indcs = change.nonzero()[0]
+        indcs += 1  # Get indices following the change.
+        # the following 6 lines are copyied from detect_bursts_dual_threshold function in neurodsp.burst
+        if burst_vector[0]:  # If the first sample is part of a burst, prepend a zero.
+            indcs = np.r_[0, indcs]
+        if burst_vector[-1]:    # If the last sample is part of a burst,
+                                # append an index corresponding to the length of signal.
+            indcs = np.r_[indcs, burst_vector.size]
+        ch_starts = indcs[0::2]  # indices of beginnings of bursts for channel ch, indices are in units of time steps (for 500 Hz sample 1 unit is 2 ms)
+        ch_ends = indcs[1::2]  # indices of ends of bursts for channel ch, indices are in units of time steps (for 500 Hz sample 1 unit is 2 ms)
+        ch_durations = (ch_ends-ch_starts)*1000/fs
+
+        for r in range(len(ch_starts)):  # for each ripple in the signal of the given electrode
+            r_start = ch_starts[r] #ripple start, indices are in units of time steps (for 500 Hz sample 1 unit is 2 ms)
+            r_end = ch_ends[r] #ripple stop, indices are in units of time steps (for 500 Hz sample 1 unit is 2 ms)
+            r_duration = ch_durations[r]
+            one_ripple = ripple_sig_ch[r_start:r_end]
+            LFP_during_ripple = LFP_ch[r_start:r_end]
+            one_ripple_envelope = ripple_env_ch[r_start:r_end]
+            signs = np.sign(one_ripple)  # array with signs of a given point of the signal
+            
+            # amplitude of the ripple
+            amplitude = np.max(one_ripple_envelope) # amplitude in the units of standard deviations of envelope
+            # time of the peak (the first one if multiple occur)
+            max_index = np.argmax(np.abs(one_ripple))
+            max_index_positive = np.argmax(one_ripple)
+            max_index_negative = np.argmax(-one_ripple)
+            max_index_envelope = np.argmax(one_ripple_envelope)
+            
+            # if 0 is a peak, asign it a positive/negative sign, so it would be detected later as a crossing 
+            for l in range(len(signs)-2):
+                if False not in (signs[[l,l+1,l+2]]==[-1,0,-1]):
+                    signs[l+1]=1
+                if False not in (signs[[l,l+1,l+2]]==[1,0,1]):
+                    signs[l+1]=-1
+            
+            sign_changes = np.zeros(len(signs))  # binary array with 1 for zero crossing
+            # we assume there are no consecutive 0 in the signal
+            for idx in range(0, len(signs) - 1):
+                if idx>0:
+                    zero_cross_with_zero = (signs[idx] == 0 and signs[idx-1]<0 and signs[idx+1]>0) or (signs[idx] == 0 and signs[idx-1]>0 and signs[idx+1]<0)
+                else: 
+                    zero_cross_with_zero = False
+                if signs[idx] > 0 > signs[idx + 1] or signs[idx] < 0 < signs[idx + 1] or zero_cross_with_zero: #(signs[idx] == 0) in more simple way
+                    sign_changes[idx] = 1
+                    
+            num_zero_crossings = sign_changes.sum() # number of ZC in the ripple
+            
+            # eyes closeed/open indicator
+            # indicates if the ripple started during eyes closed period
+            if type_rec == 'RS':
+                try:
+                    if EC_indicator[int(r_start*(1000/fs))]>0:
+                        eyes_closed_r = True
+                    else:
+                        eyes_closed_r = False
+                except:
+                    eyes_closed_r = np.nan
+            else:
+                eyes_closed_r = np.nan ### this place can be potentially used for other indicators, for example grating trial indic.
+            
+            if sign_changes.sum() > 1:      # detect the first and the last zero crossing in the ripple
+                                            # if there are at least two crossings
+                zero_cross_idx = np.nonzero(sign_changes)[0]  # array with indices of non-zero elements
+                idx_first_zero_c = zero_cross_idx[0]  # index of the first zero crossing of the ripple signal
+                idx_last_zero_c = zero_cross_idx[-1]  # index of the last zero crossing of the ripple signal
+                length_intercross = idx_last_zero_c - idx_first_zero_c  # the number of elements between
+                                                                        # the first and the last crossing
+                intercross_time = length_intercross / fs  # time between these crossings
+                
+                num_cycles = (num_zero_crossings - 1) / 2  # number of cycles in the ripple (approximation)
+                freq = num_cycles / intercross_time  # frequency of the ripple (approximation)
+                time_first_zero_c = (idx_first_zero_c+r_start)/fs # time of the first zero crossing
+                time_last_zero_c = (idx_last_zero_c+r_start)/fs # time of the last zero crossing 
+
+                # statistics of intercrossing intervals in the ripple r
+                len_intercross_intervals = np.diff(zero_cross_idx)  # lengths of intercrossing intervals
+                dur_intercross_intervals = len_intercross_intervals /fs
+                mean = np.mean(dur_intercross_intervals)  # mean intercrossing duration
+                std = np.std(dur_intercross_intervals)  # variation of intercrossing duration
+                cv = std / mean  # coefficient of variation
+                pos_peak_t_ms = (r_start+max_index_positive)*(1000/fs)
+                neg_peak_t_ms = (r_start+max_index_negative)*(1000/fs)
+                env_peak_t_ms = (r_start+max_index_envelope)*(1000/fs)
+                first_peak_height, first_pos_peak_idx, first_neg_peak_idx = find_first_peak_height(one_ripple)
+                first_pos_peak_time = (r_start+first_pos_peak_idx)*(1000/fs)
+                first_neg_peak_time = (r_start+first_neg_peak_idx)*(1000/fs)
+                
+                dict_ripple_ch = {'channel_0_95': ch, # channels are numbered from 1 to 95
+                                  'th_baseline': avg_type,
+                                  'ICI time': intercross_time,
+                                  'freq': freq,
+                                  'first_peak_sig_val': first_peak_height,
+                                  'first_pos_peak_time_ms': first_pos_peak_time,
+                                  'first_neg_peak_time_ms': first_neg_peak_time,
+                                  'time_0_sig':one_ripple[0],
+                                  'start_time_ms': r_start*(1000/fs),
+                                  'stop_time_ms': r_end*(1000/fs),
+                                  'eyes_closed': eyes_closed_r, 
+                                  'duration_ms': r_duration,
+                                  'amplitude': amplitude,
+                                  'LFP_at_pos_peak': LFP_during_ripple[max_index_positive],
+                                  'LFP_at_neg_peak': LFP_during_ripple[max_index_negative],
+                                  'peak_time_ms': (r_start+max_index)*(1000/fs), 
+                                  'positive_peak_time_ms': pos_peak_t_ms,
+                                  'negative_peak_time_ms': neg_peak_t_ms,
+                                  'envelope_peak_time_ms': env_peak_t_ms,
+                                  'num_of_zero_cross': int(num_zero_crossings),
+                                  'time_first_zero_cross': np.round(time_first_zero_c*1000),
+                                  'time_last_zero_cross': np.round(time_last_zero_c*1000),
+                                  'diff_after_before_peak':(r_end*(1000/fs)-pos_peak_t_ms)-(pos_peak_t_ms-r_start*(1000/fs)),
+                                  'peak_position_ratio':(pos_peak_t_ms-r_start*(1000/fs))/r_duration,
+                                  'env_peak_position_ratio': (env_peak_t_ms-r_start*(1000/fs))/r_duration,
+                                  'mean ICI': mean,
+                                  'std ICI': std,
+                                  'CV ICI': cv,
+                                  'bad_channel': bad_channel,
+                                  'start_rec_ms': start_rec,
+                                  'stop_rec_ms': stop_rec, 
+                                  'date': date,
+                                  'patient': patient,
+                                  }
+            else:  # if we have less than 2 zero crossings in the ripple
+                num_zero_crossings = sign_changes.sum()
+                dict_ripple_ch = {'channel_0_95': ch,
+                                  'th_baseline': avg_type,
+                                  'ICI time': np.nan,
+                                  'freq': np.nan,
+                                  'first_peak_sig_val': np.nan,
+                                  'first_pos_peak_time_ms':np.nan,
+                                  'first_neg_peak_time_ms':np.nan,
+                                  'LFP_at_pos_peak': np.nan,
+                                  'LFP_at_neg_peak': np.nan,
+                                  'time_0_sig':np.nan,
+                                  'start_time_ms': r_start*(1000/fs),
+                                  'stop_time_ms': r_end*(1000/fs),
+                                  'eyes_closed': eyes_closed_r,
+                                  'duration_ms': r_duration,
+                                  'amplitude': amplitude,
+                                  'peak_time_ms': (r_start+max_index)*(1000/fs), 
+                                  'positive_peak_time_ms': (r_start+max_index_positive)*(1000/fs),
+                                  'negative_peak_time_ms': (r_start+max_index_negative)*(1000/fs),
+                                  'envelope_peak_time_ms': (r_start+max_index_envelope)*(1000/fs),
+                                  'num_of_zero_crossings': int(num_zero_crossings),
+                                  'time_first_zero_cross': np.nan,
+                                  'time_last_zero_cross': np.nan,
+                                  'diff_after_before_peak':np.nan,
+                                  'peak_position_ratio':np.nan,
+                                  'env_peak_position_ratio': np.nan,
+                                  'mean ICI': np.nan,
+                                  'std ICI': np.nan,
+                                  'CV ICI': np.nan,
+                                  'bad_channel': bad_channel,
+                                  'start_rec_ms': start_rec,
+                                  'stop_rec_ms': stop_rec, 
+                                  'date': date,
+                                  'patient': patient,
+                                  }
+            list_ripples.append(dict_ripple_ch)
+    df = pd.DataFrame(list_ripples)
+    return df
+
+
 def find_classes_cells(spike_block,sua_df):
     """
     For a spike block, returns the list of classes corresponding to final class of each of the cells.
@@ -1669,7 +2059,7 @@ def find_classes_cells(spike_block,sua_df):
     for idx in range(num_cells):
         sp_train = spike_block.segments[0].spiketrains[idx]
         cell_name = sp_train.annotations['nix_name']
-        df_cell = sua_df[sua_df['cell_name']==cell_name]
+        df_cell = sua_df[sua_df['nix_name']==cell_name]  # either nix_name, or cell_name, change for human analysis
         if len(df_cell['final_class'])==1:
             cl_list.append(df_cell['final_class'])
         else:
@@ -1686,7 +2076,7 @@ def find_channels_cells(spike_block,sua_df):
     for idx in range(num_cells):
         sp_train = spike_block.segments[0].spiketrains[idx]
         cell_name = sp_train.annotations['nix_name']
-        df_cell = sua_df[sua_df['cell_name']==cell_name]
+        df_cell = sua_df[sua_df['nix_name']==cell_name]  # either nix_name, or cell_name, change for human analysis
         if len(df_cell['channel_order'])==1:
             cl_list.append(df_cell['channel_order'])
         else:

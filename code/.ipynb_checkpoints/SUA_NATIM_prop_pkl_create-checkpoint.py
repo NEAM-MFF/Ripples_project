@@ -50,7 +50,7 @@ WIDTH_INTERVALS = params['width_intervals']
 FINAL_CLASSES = params['final_classes']
 PEAK_HEIGHT = params['first_peak_height']
 
-SEL_TH = 0.06  # threshold for selectivity of cells, based on the histogram of all selectivities
+SEL_TH = 0.05  # threshold for selectivity of cells, based on the histogram of all selectivities
 
 ##### CALCULATING MAIN SUA PROPERTIES DATAFRAMES #####
 if calculate_SUA_prop:

@@ -1,14 +1,14 @@
 #!/bin/bash
-#SBATCH --job-name=SUA_RS_KS4
-#SBATCH --array=0-2  # 0-6, 3 monkeys, all dates for pair analysis RS
+#SBATCH --job-name=ph_4patient
+# #SBATCH --array=0-2  # 0-6, 3 monkeys, all dates for pair analysis RS
 # #SBATCH --array=0-2  # 3 monkeys for RS SUA prop.
 # #SBATCH --array=0-47%12  # 0-47, 3 monkeys * 16 arrays = 48 jobs, max N at a time, for ripple detection
 # #SBATCH --array=0-17%6  # 3 monkeys * 6 trigger options = 18 jobs, max 4 at a time, for trigg. stats
 # #SBATCH --array=0-5%4  # 3 monkeys * 2 trigger options = 6 jobs, for phase aligned trigg. stats
 # #SBATCH --array=0-2
 #SBATCH --mem=1000G
-#SBATCH -o output/sua_prop_RS_%A_%a.out
-#SBATCH -e output/sua_prop_RS_%A_%a.err
+#SBATCH -o output/4_patient_ph_%A_%a.out
+#SBATCH -e output/4_patient_ph_%A_%a.err
 #SBATCH --nodes=1
 # #SBATCH --ntasks-per-node=1
 
@@ -27,5 +27,7 @@ cd /CSNG/studekat/ripple_paper_clean/code
 ## python shuffle_phases_df.py
 ## python graph_SUA_preprocess.py
 ## python hypnogram_df.py
-
-python SUA_RS_prop_pkl_create.py $SLURM_ARRAY_TASK_ID
+## python SUA_RS_prop_pkl_create.py $SLURM_ARRAY_TASK_ID
+## python detect_ripples_df_one_arr_HUMAN.py
+## python SUA_HUMAN_prop_pkl_create.py
+python ripple_trigg_phase_align_df_create_HUMAN.py
