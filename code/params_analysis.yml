@@ -9,7 +9,7 @@ patients: ['Patient3']
 areas:
     'L': ['V1','V4','V4','V1','V1','V1','V1','V1','V1','V1','V1','V1','V1','V1','V1','V1']  # not using V2, the authors say it was borderline and we can merge
     'N': ['V1','V1','V1','V1','V1','V1','V1','V1','V4','V4','V4','V4','IT','IT','IT','IT']
-    'F': ['V1','V1','V1','V1','V1','V1','V1','V1','IT','IT','IT','V4','V4','V4','V4','V1']
+    'F': ['V1','V1','V1','V1','V1','V1','V1','V1','IT','IT','IT','IT','IT','V4','V4','V1'] # last one should be V4
 
 areas_unique:
     'L': ['V1','V4']
