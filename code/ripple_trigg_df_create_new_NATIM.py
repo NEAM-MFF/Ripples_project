@@ -1,4 +1,22 @@
 ### Ripple triggered LFP, spikes, filtered RB for NATIM files ###
+#
+# NEW FILTER VERSION. Depends on SUA in two places, same shape as
+# ripple_trigg_df_create_new_RS_new_filter.py:
+#   1. spike_block now loaded via type_sig='spikes_KS4_filtered' instead of
+#      the original's type_sig='spikes' (the pre-filter "good units" file).
+#      For type_rec='NATIM', load_block()'s spikes_KS4_filtered branch reads
+#      f'{data_folder}/macaque{monkey}_TVSD_{date}/spikes_filtered/macaque{monkey}_TVSD_{date}_Array{array}_spikes_KS4_filtered.nix'
+#      (NATIM recordings use the "TVSD" naming, already handled inside
+#      load_block - nothing to change here beyond the type_sig argument).
+#   2. find_classes_cells(spike_block, df_sua) / find_channels_cells(...)
+#      match every unit in spike_block against df_sua by cell_name alone -
+#      only safe when spike_block and df_sua are built from the SAME unit
+#      set. df_sua here comes from sua_prop_all_NATIM under
+#      dataframes_new_filter/ (built by SUA_NATIM_prop_pkl_create_new_filter.py,
+#      which also reads spikes_KS4_filtered), so the two sets match.
+# Also depends on the ripple dataframes (load_ripples_df) - repointed via
+# DF_FOLDER, requires detect_ripples_df_one_arr_NATIM_new_filter.py to have
+# already been run.
 
 from functions_analysis import *
 import pandas as pd
@@ -9,15 +27,16 @@ import neo
 import sys
 import elephant
 
-with open("/CSNG/studekat/ripple_band_project/code/params_analysis.yml") as f:
+with open("/CSNG/studekat/ripple_paper_clean_copy/code_new_filter/params_analysis.yml") as f:
     params = yaml.safe_load(f)
 
 DATA_FOLDER = params['natim_data_folder']
 DATES = params['dates']
 
+MAIN_FOLDER = params['main_folder']
 FINAL_CLASSES = params['final_classes']
 
-DF_FOLDER = f'{MAIN_FOLDER}/dataframes' ### here the resulting dataframes will be saved
+DF_FOLDER = f'{MAIN_FOLDER}/dataframes_new_filter' ### NEW: input (sua_prop_all_NATIM, ripples) and output
 MONKEY_LIST = ['N', 'F']
 
 DUAL_TH = [2.5,3.5]
@@ -26,7 +45,7 @@ LOWPASS = 40
 if len(sys.argv) < 2:
     print("Error: Missing SLURM_ARRAY_TASK_ID argument.")
     sys.exit(1)
-    
+
 task_id = int(sys.argv[1])  # SLURM_ARRAY_TASK_ID
 monkeys = MONKEY_LIST
 trigg_points = ['start', 'first_pos_peak', 'first_neg_peak', 'env_max_peak', 'signal_max_pos_peak', 'signal_max_neg_peak','stop']
@@ -44,41 +63,44 @@ for date in params['dates'][monkey]['NATIM']:
     except:
         print('Cannot open the SUA prop. file.')
     prop_list = []
-    for array in range(1,17): 
+    for array in range(1,17):
         print(array)
-        try:  
+        try:
             try:
                 df_ripp_arr = load_ripples_df([monkey],dual_th=DUAL_TH,date=date,array=array,area=None,condition='NATIM',
                                             params=params,df_folder=DF_FOLDER,exclude_noisy=True,verbose=False)
-                spike_block = load_block(monkey,array,type_rec='NATIM',type_sig='spikes',date=date,data_folder=DATA_FOLDER)  # SUA
+                spike_block = load_block(monkey,array,type_rec='NATIM',type_sig='spikes_KS4_filtered',date=date,data_folder=DATA_FOLDER)  # SUA, current filtering
+                if spike_block is None:
+                    raise FileNotFoundError('load_block returned None (see printed path above)')
                 RB_block = load_block(monkey,array,type_rec='NATIM',type_sig='RB',date=date,data_folder=DATA_FOLDER)  # Ripple band
                 LFP_block = load_block(monkey,array,type_rec='NATIM',type_sig='LFP',date=date,data_folder=DATA_FOLDER)  # LFP non-norm.
                 num_cells = len(spike_block.segments[0].spiketrains)
-                
-                start_t_spikes_ms = int(np.floor(np.float64(spike_block.segments[0].spiketrains[0].t_start.rescale('ms').magnitude)))
+
+                start_t_spikes_ms = int(np.floor(np.float64(spike_block.segments[0].spiketrains[0].t_start.rescale('ms').magnitude))) \
+                    if num_cells > 0 else None
                 start_t_RB_ms = int(np.floor(np.float64(RB_block.segments[0].analogsignals[0].t_start.rescale('ms').magnitude)))
                 start_t_LFP_ms = int(np.floor(np.float64(LFP_block.segments[0].analogsignals[0].t_start.rescale('ms').magnitude)))
-                
+
                 print(f'Start t RB: {start_t_RB_ms}')
                 print(f'Start t spikes: {start_t_spikes_ms}')
                 print(f'Start t LFP: {start_t_LFP_ms}')
-                if start_t_spikes_ms!=start_t_RB_ms:
+                if start_t_spikes_ms is not None and start_t_spikes_ms!=start_t_RB_ms:
                     print('Spikes and ripples do not have the same start time.')
-                if start_t_spikes_ms!=start_t_LFP_ms:
+                if start_t_spikes_ms is not None and start_t_spikes_ms!=start_t_LFP_ms:
                     print('Spikes and LFP do not have the same start time.')
                 #df_ripp_arr = df_ripp[df_ripp['array']==array]
-            except:
-                print(f'Cannot read files for date {date}, monkey {monkey}, array {array}.')
+            except Exception as e:
+                print(f'Cannot read files for date {date}, monkey {monkey}, array {array}. ({e})')
             if df_ripp_arr.shape[0]>0:
                 rb_sig_arr = sig_block_to_arr(RB_block,'RB_filtered_zsc')
                 rb_envelope_arr = sig_block_to_arr(RB_block,'RB_envelope_norm')
 
                 if LOWPASS is not None:
-                    rb_envelope_arr = elephant.signal_processing.butter(rb_envelope_arr, highpass_frequency=None, lowpass_frequency=LOWPASS, 
+                    rb_envelope_arr = elephant.signal_processing.butter(rb_envelope_arr, highpass_frequency=None, lowpass_frequency=LOWPASS,
                                                                 order=6, filter_function='sosfiltfilt',sampling_frequency=1000, axis=-1)
                     # renormalize, because we filtered again
                     rb_envelope_arr = rb_envelope_arr/rb_envelope_arr.std(axis=1,keepdims=True)
-                    
+
                 LFP_arr = sig_block_to_arr(LFP_block,'LFP_zsc')
                 spike_arr = spike_block_to_arr(spike_block)
 
@@ -92,7 +114,7 @@ for date in params['dates'][monkey]['NATIM']:
                         spikes_sum_dict_array[cl] = cell_vector
                     else:
                         spikes_sum_dict_array[cl] = np.zeros(spike_arr.shape[1])
-                
+
                 for ch in range(64):
                     cell_classes = np.array(find_classes_cells(spike_block,df_sua))
                     cell_channels = np.array(find_channels_cells(spike_block,df_sua))
@@ -112,7 +134,7 @@ for date in params['dates'][monkey]['NATIM']:
                     channel_prop['monkey'] = monkey
                     channel_prop['date'] = date
                     channel_prop['area'] = params['areas'][monkey][array-1]
-                    
+
                     rb_sig_vec = rb_sig_arr[ch,:]
                     rb_env_vec = rb_envelope_arr[ch,:]
                     LFP_vec = LFP_arr[ch,:]
@@ -135,7 +157,7 @@ for date in params['dates'][monkey]['NATIM']:
                         else:
                             print(f"Invalid trigg_point: {trigg_point}")
                             raise SystemExit("Exiting due to invalid trigger parameter.")
-                            
+
                         ripp_centers_in_common_time = (only_common_peaks - arr_start).astype(np.int64)  # RELATIVE TIME FROM ARRAY START HERE
                         ripple_center_vec = np.zeros(LFP_vec.shape[0])
                         ripple_center_vec[ripp_centers_in_common_time] = 1
@@ -144,7 +166,7 @@ for date in params['dates'][monkey]['NATIM']:
                                                           spikes_sum_dict_array=spikes_sum_dict_array,spikes_sum_dict_ch=spikes_sum_dict_ch,
                                                           width_cut=10000,cell_classes=params['final_classes'],channel_prop=channel_prop)
                         prop_list.append(prop_dict)
-                    
+
                         print(f'Prop. for ch. {ch} calculated.')
                     else:
                         print(f'No ripples on ch. {ch} detected.') ### usually indicates the noisy channel that was letf out
@@ -154,5 +176,3 @@ for date in params['dates'][monkey]['NATIM']:
     ensure_dir_exists(f'{DF_FOLDER}/ripple_prop_triggered_10s_NATIM/th__{int(DUAL_TH[0]*10)}_{int(DUAL_TH[1]*10)}/')
     df_prop.to_pickle(f'{DF_FOLDER}/ripple_prop_triggered_10s_NATIM/th__{int(DUAL_TH[0]*10)}_{int(DUAL_TH[1]*10)}/{trigg_point}_monkey{monkey}_all_arrays_date_{date}.pkl')
     print(f'Saved DF for date {date}.')
-
-

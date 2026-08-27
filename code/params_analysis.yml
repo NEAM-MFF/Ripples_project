@@ -1,15 +1,15 @@
 data_folder: '/CSNG/Ephys_data/Macaque_data'  # Folder with RS data
 natim_data_folder: '/CSNG/Ephys_data/Macaque_data/TVSD_data'  # Folder with NATIM data
-main_folder: '/CSNG/studekat/ripple_paper_clean'  # Folder with code and dataframes
+main_folder: '/CSNG/studekat/ripple_paper_clean_copy'  # Folder with code and dataframes
 human_data_folder: '/CSNG/Ephys_data/Human_data'  # Folder with human patient 3 data
 
 monkeys: ['L','N','F']
-patients: ['Patient3']
+patients: ['Patient2','Patient3']
 
 areas:
     'L': ['V1','V4','V4','V1','V1','V1','V1','V1','V1','V1','V1','V1','V1','V1','V1','V1']  # not using V2, the authors say it was borderline and we can merge
-    'N': ['V1','V1','V1','V1','V1','V1','V1','V1','V4','V4','V4','V4','IT','IT','IT','IT']
-    'F': ['V1','V1','V1','V1','V1','V1','V1','V1','IT','IT','IT','IT','IT','V4','V4','V1'] # last one should be V4
+    'N': ['V1','V1','V1','V1','None','V1','V1','V1','V4','V4','V4','V4','IT','IT','IT','IT']
+    'F': ['V1','V1','V1','V1','V1','V1','V1','V1','IT','IT','IT','IT','IT','V4','V4','V4'] # last one should be V4
 
 areas_unique:
     'L': ['V1','V4']
@@ -65,7 +65,7 @@ times_all_arr: ### in ms
 #### cell classification variables
 width_intervals: [[0,7],[8,12],[13,90]]  # in 30 kHz sampling rates units, division between narrow, medium and sharp
 first_peak_height: 1.2 #1.2  # the height of the first zsc peak to divide sharp and shallo cells in narrow and medium
-select_th: 0.05
+select_th: 0.04
 
 final_classes: ['DOWN_narrow_shallow','DOWN_medium_shallow','DOWN_wide','DOWN_narrow_sharp','DOWN_medium_sharp','UP']
 classes_names: ['Narrow Shallow','Medium Shallow','Wide','Narrow Sharp','Medium Sharp','Positive']

@@ -1,4 +1,25 @@
-### Ripple triggered LFP, filtered, and Spikes for RS ### 
+### Ripple triggered LFP, filtered, and Spikes for RS ###
+#
+# NEW FILTER VERSION. Depends on SUA in two places:
+#   1. spike_block loaded via load_block(type_sig='spikes_KS4' -> now
+#      'spikes_KS4_filtered'), requires the functions_analysis.py patch
+#      (functions_analysis_new_filter.py) that adds that branch.
+#   2. find_classes_cells(spike_block, df_sua) / find_channels_cells(...)
+#      match every unit in spike_block against df_sua by cell_name alone (no
+#      array/date in the match). This is only safe when spike_block and
+#      df_sua are built from the SAME unit set - if they weren't, a unit
+#      present in spike_block but missing from df_sua gets silently skipped
+#      inside find_classes_cells (the "else: pass" branch), which shortens
+#      cell_classes relative to spike_arr and misaligns every index after
+#      that point. Since df_sua now comes from sua_prop_all_new_filter (only
+#      currently-passing units) and spike_block now comes from
+#      spikes_KS4_filtered (also only currently-passing units), the two sets
+#      match exactly and this can't happen - but if you ever mix an old-set
+#      df_sua with a new-set spike_block or vice versa, this breaks silently
+#      rather than erroring, so keep them paired.
+# Also depends on the ripple dataframes (load_ripples_df) - same
+# DF_FOLDER-driven repointing as ripple_trigg_spectra_create_RS.py, requires
+# detect_ripples_df_one_arr_RS_new_filter.py to have already been run.
 
 from functions_analysis import *
 import pandas as pd
@@ -9,7 +30,7 @@ import neo
 import sys
 import elephant
 
-with open("/CSNG/studekat/ripple_paper_clean/code/params_analysis.yml") as f:
+with open("/CSNG/studekat/ripple_paper_clean_copy/code_new_filter/params_analysis.yml") as f:
     params = yaml.safe_load(f)
 
 MAIN_FOLDER = params['main_folder']
@@ -17,7 +38,7 @@ DATA_FOLDER = params['data_folder'] ### folder with all the preprocessed data
 DATES = params['dates']
 FINAL_CLASSES = params['final_classes']
 
-DF_FOLDER = f'{MAIN_FOLDER}/dataframes' ### here the resulting dataframes will be saved
+DF_FOLDER = f'{MAIN_FOLDER}/dataframes_new_filter' ### NEW: input (sua_prop_all, ripples) and output
 
 DUAL_TH = [2.5,3.5]
 LOWPASS = 40
@@ -25,7 +46,7 @@ LOWPASS = 40
 if len(sys.argv) < 2:
     print("Error: Missing SLURM_ARRAY_TASK_ID argument.")
     sys.exit(1)
-    
+
 task_id = int(sys.argv[1])  # SLURM_ARRAY_TASK_ID
 monkeys = ['L', 'N', 'F']
 trigg_points = ['start', 'first_pos_peak', 'first_neg_peak', 'signal_max_pos_peak', 'signal_max_neg_peak','stop'] # 'env_max_peak'
@@ -43,41 +64,44 @@ for date in params['dates'][monkey]['RS']:
     except:
         print('Cannot open the SUA prop. file.')
     prop_list = []
-    for array in range(1,17): 
+    for array in range(1,17):
         print(array)
-        try:  
+        try:
             try:
                 df_ripp_arr = load_ripples_df([monkey],dual_th=DUAL_TH,date=date,array=array,area=None,condition='RS',
                                             params=params,df_folder=DF_FOLDER,exclude_noisy=True,verbose=False)
-                spike_block = load_block(monkey,array,type_rec='RS',type_sig='spikes_KS4',date=date,data_folder=DATA_FOLDER)  # SUA
+                spike_block = load_block(monkey,array,type_rec='RS',type_sig='spikes_KS4_filtered',date=date,data_folder=DATA_FOLDER)  # SUA, current filtering
+                if spike_block is None:
+                    raise FileNotFoundError('load_block returned None (see printed path above)')
                 RB_block = load_block(monkey,array,type_rec='RS',type_sig='RB',date=date,data_folder=DATA_FOLDER)  # Ripple band
                 LFP_block = load_block(monkey,array,type_rec='RS',type_sig='LFP',date=date,data_folder=DATA_FOLDER)  # LFP non-norm.
                 num_cells = len(spike_block.segments[0].spiketrains)
-                
-                start_t_spikes_ms = int(np.floor(np.float64(spike_block.segments[0].spiketrains[0].t_start.rescale('ms').magnitude)))
+
+                start_t_spikes_ms = int(np.floor(np.float64(spike_block.segments[0].spiketrains[0].t_start.rescale('ms').magnitude))) \
+                    if num_cells > 0 else None
                 start_t_RB_ms = int(np.floor(np.float64(RB_block.segments[0].analogsignals[0].t_start.rescale('ms').magnitude)))
                 start_t_LFP_ms = int(np.floor(np.float64(LFP_block.segments[0].analogsignals[0].t_start.rescale('ms').magnitude)))
-                
+
                 print(f'Start t RB: {start_t_RB_ms}')
                 print(f'Start t spikes: {start_t_spikes_ms}')
                 print(f'Start t LFP: {start_t_LFP_ms}')
-                if start_t_spikes_ms!=start_t_RB_ms:
+                if start_t_spikes_ms is not None and start_t_spikes_ms!=start_t_RB_ms:
                     print('Spikes and ripples do not have the same start time.')
-                if start_t_spikes_ms!=start_t_LFP_ms:
+                if start_t_spikes_ms is not None and start_t_spikes_ms!=start_t_LFP_ms:
                     print('Spikes and LFP do not have the same start time.')
                 #df_ripp_arr = df_ripp[df_ripp['array']==array]
-            except:
-                print(f'Cannot read files for date {date}, monkey {monkey}, array {array}.')
+            except Exception as e:
+                print(f'Cannot read files for date {date}, monkey {monkey}, array {array}. ({e})')
             if df_ripp_arr.shape[0]>0:
                 rb_sig_arr = sig_block_to_arr(RB_block,'RB_filtered_zsc')
                 rb_envelope_arr = sig_block_to_arr(RB_block,'RB_envelope_norm')
 
                 if LOWPASS is not None:
-                    rb_envelope_arr = elephant.signal_processing.butter(rb_envelope_arr, highpass_frequency=None, lowpass_frequency=LOWPASS, 
+                    rb_envelope_arr = elephant.signal_processing.butter(rb_envelope_arr, highpass_frequency=None, lowpass_frequency=LOWPASS,
                                                                 order=6, filter_function='sosfiltfilt',sampling_frequency=1000, axis=-1)
                     # renormalize, because we filtered again
                     rb_envelope_arr = rb_envelope_arr/rb_envelope_arr.std(axis=1,keepdims=True)
-                    
+
                 LFP_arr = sig_block_to_arr(LFP_block,'LFP_zsc')
                 spike_arr = spike_block_to_arr(spike_block)
 
@@ -91,7 +115,7 @@ for date in params['dates'][monkey]['RS']:
                         spikes_sum_dict_array[cl] = cell_vector
                     else:
                         spikes_sum_dict_array[cl] = np.zeros(spike_arr.shape[1])
-                
+
                 for ch in range(64):
                     cell_classes = np.array(find_classes_cells(spike_block,df_sua))
                     cell_channels = np.array(find_channels_cells(spike_block,df_sua))
@@ -111,7 +135,7 @@ for date in params['dates'][monkey]['RS']:
                     channel_prop['monkey'] = monkey
                     channel_prop['date'] = date
                     channel_prop['area'] = params['areas'][monkey][array-1]
-                    
+
                     rb_sig_vec = rb_sig_arr[ch,:]
                     rb_env_vec = rb_envelope_arr[ch,:]
                     LFP_vec = LFP_arr[ch,:]
@@ -135,7 +159,7 @@ for date in params['dates'][monkey]['RS']:
                         else:
                             print(f"Invalid trigg_point: {trigg_point}")
                             raise SystemExit("Exiting due to invalid trigger parameter.")
-                            
+
                         only_common_peaks = only_common_peaks[only_common_peaks>common_start]
                         ripp_centers_in_common_time = (only_common_peaks - common_start).astype(np.int64)
                         ripple_center_vec = np.zeros(LFP_vec.shape[0])
@@ -154,10 +178,10 @@ for date in params['dates'][monkey]['RS']:
                         else:
                             print(f"Invalid trigg_point: {trigg_point}")
                             raise SystemExit("Exiting due to invalid trigger parameter.")
-                            
+
                         EC_only_common_peaks = EC_only_common_peaks[EC_only_common_peaks>common_start]
                         EC_ripp_centers_in_common_time = (EC_only_common_peaks - common_start).astype(np.int64)
-                        EC_ripp_centers_in_common_time = EC_ripp_centers_in_common_time[EC_ripp_centers_in_common_time<LFP_vec.shape[0]] 
+                        EC_ripp_centers_in_common_time = EC_ripp_centers_in_common_time[EC_ripp_centers_in_common_time<LFP_vec.shape[0]]
                         EC_ripple_center_vec = np.zeros(LFP_vec.shape[0])
                         EC_ripple_center_vec[EC_ripp_centers_in_common_time] = 1
 
@@ -172,7 +196,7 @@ for date in params['dates'][monkey]['RS']:
                                                           spikes_sum_dict_array=spikes_sum_dict_array,spikes_sum_dict_ch=spikes_sum_dict_ch,
                                                           width_cut=10000,cell_classes=params['final_classes'],channel_prop=channel_prop)
                         prop_list.append(prop_dict)
-                    
+
                         print(f'Prop. for ch. {ch} calculated.')
                     else:
                         print(f'No ripples on ch. {ch} detected.') ### usually indicates the noisy channel that was letf out
@@ -182,5 +206,3 @@ for date in params['dates'][monkey]['RS']:
     ensure_dir_exists(f'{DF_FOLDER}/ripple_prop_triggered_10s/th__{int(DUAL_TH[0]*10)}_{int(DUAL_TH[1]*10)}/')
     df_prop.to_pickle(f'{DF_FOLDER}/ripple_prop_triggered_10s/th__{int(DUAL_TH[0]*10)}_{int(DUAL_TH[1]*10)}/{trigg_point}_monkey{monkey}_all_arrays_date_{date}.pkl')
     print(f'Saved DF for date {date}.')
-
-

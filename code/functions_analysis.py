@@ -27,15 +27,30 @@ def load_block(monkey,array,type_rec,type_sig,date,data_folder=''):
     Loading the monkey data (already preprocessed as in the snake files).
     
     type_rec: RS, OG, NATIM
-    type_sig: LFP, RB, tMUA, spikes, spikes_KS4
+    type_sig: LFP, RB, tMUA, spikes, spikes_KS4, spikes_KS4_filtered
+
+    NEW: type_sig='spikes_KS4_filtered' reads the current filtering's output
+    (HANDOVER_filtered_data.md section 2). It needs its own branch, same as
+    'spikes' already has, because the directory name (spikes_filtered) does
+    not match the filename suffix (spikes_KS4_filtered) - the generic
+    type_sig substitution below assumes those are the same string, which is
+    true for 'spikes_KS4' (good units) and 'LFP'/'RB'/'tMUA' but not for this
+    one. Do NOT use the old, now-deleted naming spikes_filtered.nix (without
+    KS4) mentioned in the handover as a leftover from a run that read the
+    wrong source directory.
     """
     if type_rec=='NATIM':
-        path = f'{data_folder}/macaque{monkey}_TVSD_{date}/{type_sig}/macaque{monkey}_TVSD_{date}_Array{array}_{type_sig}.nix'
+        if type_sig=='spikes_KS4_filtered':
+            path = f'{data_folder}/macaque{monkey}_TVSD_{date}/spikes_filtered/macaque{monkey}_TVSD_{date}_Array{array}_spikes_KS4_filtered.nix'
+        else:
+            path = f'{data_folder}/macaque{monkey}_TVSD_{date}/{type_sig}/macaque{monkey}_TVSD_{date}_Array{array}_{type_sig}.nix'
     else:
         #if monkey=='L' and type_sig=='spikes_KS4':
         #    path = f'{data_folder}/macaque{monkey}_{type_rec}_{date}/{type_sig}/macaque{monkey}_{type_rec}_{date}_Array{array}_spikes.nix'
         if type_sig=='spikes':
             path = f'{data_folder}/macaque{monkey}_{type_rec}_{date}/{type_sig}/macaque{monkey}_{type_rec}_{date}_Array{array}_spikes_good_units.nix'
+        elif type_sig=='spikes_KS4_filtered':
+            path = f'{data_folder}/macaque{monkey}_{type_rec}_{date}/spikes_filtered/macaque{monkey}_{type_rec}_{date}_Array{array}_spikes_KS4_filtered.nix'
         else:
             path = f'{data_folder}/macaque{monkey}_{type_rec}_{date}/{type_sig}/macaque{monkey}_{type_rec}_{date}_Array{array}_{type_sig}.nix'
     try:
@@ -922,10 +937,19 @@ def aux_add_zscored_avg_waveform(df_sua):
     """
     From a dataframe with formated waveforms, saves one more column with each waveform zscored, 
     and another column with its zscored amplitude.
+
+    NEW: avg_wf is a pq.Quantity (with .magnitude) when it comes from
+    averaging per-spike waveforms in the old pipeline, but a plain numpy
+    array when it comes from the new filtered files' avg_wf annotation - NIX
+    cannot store Quantity units in an annotation, so SUA_write_filtered_nix.py
+    writes plain floats and SUA_RS_prop_pkl_create_new_filter.py reads them
+    back as plain floats. zscoring is unit-invariant, so both give the same
+    result; this just avoids an AttributeError on .magnitude for the plain
+    array case.
     """    
     waveforms = df_sua['avg_wf'].values
     df_added = df_sua
-    df_added['avg_wf_zscored'] =  [zscore(wf.magnitude) for wf in waveforms]
+    df_added['avg_wf_zscored'] =  [zscore(wf.magnitude if hasattr(wf, 'magnitude') else np.asarray(wf, dtype=float)) for wf in waveforms]
     wfs_zsc = df_added['avg_wf_zscored'].values
     df_added['amp_wf_zscored'] = [np.max(wf) - np.min(wf) for wf in wfs_zsc]
     return df_added
@@ -2050,7 +2074,7 @@ def ripple_prop_human(patient,date, dual_th=[2.5,3.5], f_range=[80,150],
     return df
 
 
-def find_classes_cells(spike_block,sua_df):
+def find_classes_cells_human(spike_block,sua_df):
     """
     For a spike block, returns the list of classes corresponding to final class of each of the cells.
     """
@@ -2067,7 +2091,24 @@ def find_classes_cells(spike_block,sua_df):
     return cl_list
 
 
-def find_channels_cells(spike_block,sua_df):
+def find_classes_cells(spike_block,sua_df):
+    """
+    For a spike block, returns the list of classes corresponding to final class of each of the cells.
+    """
+    num_cells = len(spike_block.segments[0].spiketrains)
+    cl_list = []
+    for idx in range(num_cells):
+        sp_train = spike_block.segments[0].spiketrains[idx]
+        cell_name = sp_train.annotations['nix_name']
+        df_cell = sua_df[sua_df['cell_name']==cell_name]  # either nix_name, or cell_name, change for human analysis
+        if len(df_cell['final_class'])==1:
+            cl_list.append(df_cell['final_class'])
+        else:
+            pass
+    return cl_list
+
+
+def find_channels_cells_human(spike_block,sua_df):
     """
     For a spike block, returns the list of channel corresponding to index in RB or LFP file.
     """
@@ -2077,6 +2118,23 @@ def find_channels_cells(spike_block,sua_df):
         sp_train = spike_block.segments[0].spiketrains[idx]
         cell_name = sp_train.annotations['nix_name']
         df_cell = sua_df[sua_df['nix_name']==cell_name]  # either nix_name, or cell_name, change for human analysis
+        if len(df_cell['channel_order'])==1:
+            cl_list.append(df_cell['channel_order'])
+        else:
+            pass
+    return cl_list
+
+
+def find_channels_cells(spike_block,sua_df):
+    """
+    For a spike block, returns the list of channel corresponding to index in RB or LFP file.
+    """
+    num_cells = len(spike_block.segments[0].spiketrains)
+    cl_list = []
+    for idx in range(num_cells):
+        sp_train = spike_block.segments[0].spiketrains[idx]
+        cell_name = sp_train.annotations['nix_name']
+        df_cell = sua_df[sua_df['cell_name']==cell_name]  # either nix_name, or cell_name, change for human analysis
         if len(df_cell['channel_order'])==1:
             cl_list.append(df_cell['channel_order'])
         else:
@@ -2388,6 +2446,7 @@ def aux_units_on_ch(df_sua_all,array,final_classes):
                 ch_dict[ch].append(cl)
     return ch_dict
 
+
 def aux_dominant_clique_on_ch(ch_dict):
     """
     Given the distribution of units per channel decides which clique it belongs to.
@@ -2407,6 +2466,7 @@ def aux_dominant_clique_on_ch(ch_dict):
             clique_dict[ch] = 'gray'
     return clique_dict
 
+
 def cut_out_LFP(lfp_block,trial_csv,buffer=200):
     """
     Out of the LFP block cuts out only T buffer part before stimulation onset.
@@ -2419,6 +2479,7 @@ def cut_out_LFP(lfp_block,trial_csv,buffer=200):
     lfp_arr_list = [lfp_arr[:,t - buffer : t] for t in times_ms_shifted if t - buffer >= 0]
     return np.hstack(lfp_arr_list)
 
+
 def aux_split_idx(clique_dict):
     """
     Returns indices of blue and orange cliques.
@@ -2426,6 +2487,7 @@ def aux_split_idx(clique_dict):
     blue_keys = [k for k, v in clique_dict.items() if v == 'blue']
     orange_keys = [k for k, v in clique_dict.items() if v == 'orange']
     return blue_keys, orange_keys
+
 
 def aux_split_lfp(lfp_arr,blue_cl_idx,orange_cl_idx):
     """
@@ -2438,6 +2500,7 @@ def aux_split_lfp(lfp_arr,blue_cl_idx,orange_cl_idx):
     other_lfps = lfp_arr[other_mask,:]
     return blue_lfps, orange_lfps, other_lfps
 
+
 def spectrum_list(lfp_arr,nperseg):
     """
     Takes as an input list of cut out LFP, 
@@ -2445,6 +2508,7 @@ def spectrum_list(lfp_arr,nperseg):
     """
     f, psds = welch(lfp_arr, fs=1000, axis=1, nperseg=nperseg)
     return psds, f
+
 
 def aux_pick_f_psd(aux_dict,monkey,f_min,f_max,mean_for_array=False):
     """
