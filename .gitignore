@@ -1,0 +1,5 @@
+*-checkpoint.ipynb
+*-checkpoint.ipynb
+notebooks_not_used/
+.ipynb_checkpoints/
+__pycache__/
