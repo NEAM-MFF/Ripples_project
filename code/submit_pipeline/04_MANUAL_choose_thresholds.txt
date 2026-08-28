@@ -1,0 +1,13 @@
+STAGE 0b - MANUAL STEP, no sbatch here.
+
+Run the F22 threshold-selection notebook (F22_filter_thresholds...ipynb) once
+01, 02 and 03 have ALL finished. It reads the filter_metrics_* outputs from
+stage 0a, lets you inspect the QC-metric distributions, and on the final
+"Export" cell writes the single shared threshold file every downstream
+filtering script reads:
+
+    dataframes/filter_metrics_chosen/thresholds.pkl
+
+Do not run 05/06/07 below until this file reflects the thresholds you
+actually want - RS, NATIM and HUMAN all read the same file, so there is only
+one place to change your mind.
